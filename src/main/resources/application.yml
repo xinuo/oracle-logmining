@@ -2,6 +2,11 @@
 spring:
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:@192.168.1.33:1521/orcl
-    username: kminer
-    password: kminerpass
+    url: jdbc:oracle:thin:@192.168.1.32:1521/orclcdb
+    username: c##log
+    password: log
+
+mining:
+  sync-table: ciicfs_test.EMP_INFO,ciicfs.b001
+  polling-interval: 5
+  polling-size: 1000
