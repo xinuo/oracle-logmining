@@ -49,9 +49,8 @@ public class SQLExtractor {
         for (int i = 0; i < insert.getColumns().size(); i++) {
             String columeName = insert.getColumns().get(i).getColumnName();
             String value = exp.getExpressions().get(i).toString();
-            value = parseValue(value);
 
-            newData.put(columeName, value);
+            newData.put(parseValue(columeName), parseValue(value));
         }
         row.setNewData(newData);
 
@@ -103,9 +102,10 @@ public class SQLExtractor {
 
         Statement stmt = CCJSqlParserUtil.parse(insert);
 
-        Insert ins = (Insert) stmt;
-        System.out.println(ins.getTable().getName());
+        Row row = convInsert((Insert) stmt);
 
+        System.out.println(row.getSchemaName());
+        System.out.println(row.getSchemaName());
 
     }
 }
