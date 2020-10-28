@@ -71,8 +71,8 @@ public class MiningDAO {
     }
 
     private long loadStartScn() throws IOException {
-        if(initStartScn != 0) {  //如果启动时设置了起始scn，则优先使用
-            log.info("指定了初始抓取scn {}, 从此处开始获取数据",initStartScn);
+        if (initStartScn != 0) {  //如果启动时设置了起始scn，则优先使用
+            log.info("指定了初始抓取scn {}, 从此处开始获取数据", initStartScn);
             return initStartScn;
         }
         File state = new File("state.saved");
@@ -99,7 +99,7 @@ public class MiningDAO {
 
         if (startScn == currentScn) {
             String msg = String.format("已捕获至日志末尾,暂停 %d 秒. (起始SCN %d 等于 当前SCN %d)", pollingInterval, startScn, currentScn);
-            TimeUnit.SECONDS.sleep(pollingInterval * 1000);
+            TimeUnit.SECONDS.sleep(pollingInterval);
         }
         //计算分析一次归档的终点scn，性能调优参数，在一次分析的范围大小与数据库压力之间调整，
         //endScn不应大于数据库最大scn值
@@ -109,10 +109,15 @@ public class MiningDAO {
 //        int previousCsf = 0;
 
         //启动日志分析
+        log.debug("开始分析REDO日志 " + Constants.MINING_START.replaceAll("\\?", "{}"), startScn, endScn);
         jdbcTemplate.update(Constants.MINING_START, startScn, endScn);
         jdbcTemplate.setFetchSize(1000);
 
+        log.debug("提取REDO日志 {}", miningSql);
         jdbcTemplate.query(miningSql, (rs) -> {
+            //计数
+            Counter.addCount();
+            //读取REDO
             long scn = rs.getLong("scn");
             int csf = rs.getInt("CSF");
             String redo = rs.getString("SQL_REDO");
@@ -133,6 +138,7 @@ public class MiningDAO {
         });
 
         //关闭日志分析
+        log.debug("停止分析REDO日志 {}", Constants.MINING_END);
         jdbcTemplate.update(Constants.MINING_END);
         return endScn;  //返回本次结束的scn，作为下一次轮询的startScn
     }

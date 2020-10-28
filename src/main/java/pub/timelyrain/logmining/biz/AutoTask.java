@@ -16,6 +16,7 @@ public class AutoTask implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
+        new Counter().start();
         miningDAO.startMining();
     }
 }
