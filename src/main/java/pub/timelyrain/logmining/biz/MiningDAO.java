@@ -3,24 +3,30 @@ package pub.timelyrain.logmining.biz;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import pub.timelyrain.logmining.pojo.Row;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
-
-import static pub.timelyrain.logmining.biz.Constants.QUERY_REDO;
 
 @Component
 public class MiningDAO {
     Logger log = LogManager.getLogger(MiningDAO.class);
 
+    @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private SQLExtractor sqlExtractor;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @Value("${mining.sync-table}")
     private String tables;
@@ -28,16 +34,12 @@ public class MiningDAO {
     private int pollingInterval;
     @Value("${mining.polling-size}")
     private int pollingSize;
-
-    private String miningSql;
-
     @Value("${mining.init-start-scn}")
     private int initStartScn;
+    @Value("${mining.mq-exchage-name}")
+    private String mqExchangeName;
 
-    @Autowired
-    public MiningDAO(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
+    private String miningSql;
 
     public void startMining() {
         //检查
@@ -51,10 +53,10 @@ public class MiningDAO {
 
             miningSql = buildMiningSql();
 
-
             while (true) {
                 long endScn = polling(startScn);
                 startScn = endScn;
+
                 saveEndScn(endScn);
             }
 
@@ -105,9 +107,6 @@ public class MiningDAO {
         //endScn不应大于数据库最大scn值
         long endScn = Math.min(startScn + pollingSize, currentScn);
 
-//        StringBuilder tmpSqlRedo = new StringBuilder();   //redo sql有可能被截断。利用这个临时对象组装回完整的sql
-//        int previousCsf = 0;
-
         //启动日志分析
         log.debug("开始分析REDO日志 " + Constants.MINING_START.replaceAll("\\?", "{}"), startScn, endScn);
         jdbcTemplate.update(Constants.MINING_START, startScn, endScn);
@@ -120,6 +119,8 @@ public class MiningDAO {
             //读取REDO
             long scn = rs.getLong("scn");
             int csf = rs.getInt("CSF");
+            String schema = rs.getString("");
+            String tableName = rs.getString("");
             String redo = rs.getString("SQL_REDO");
             if (csf == 1) {     //如果REDO被截断
                 while (rs.next()) {  //继续查询下一条REDO
@@ -131,7 +132,7 @@ public class MiningDAO {
                 }
             }
             if (csf == 0) {
-                convertAndDelivery(redo);
+                convertAndDelivery(schema, tableName, redo);
             } else {
                 log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
             }
@@ -180,8 +181,14 @@ public class MiningDAO {
         return sql.toString();
     }
 
-    private void convertAndDelivery(String redo) {
-        log.debug(redo);
+    private void convertAndDelivery(String schema, String tableName, String redo) {
+        try {
+            Row row = sqlExtractor.parse(schema, tableName, redo);
+            rabbitTemplate.convertAndSend(mqExchangeName, schema + "." + tableName, row);
+
+        } catch (Exception e) {
+            log.error("转换REDO和分发数据错误", e);
+        }
     }
 
 

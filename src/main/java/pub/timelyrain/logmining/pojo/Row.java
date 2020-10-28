@@ -1,6 +1,7 @@
 package pub.timelyrain.logmining.pojo;
 
-import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Row {
     private String schemaName;
@@ -15,9 +16,9 @@ public class Row {
      * INSERT,UPDATE,DELETE
      */
     private String operator;
-    private HashMap<String, String> newData;
-    private HashMap<String, String> oldData;
-    private HashMap<String, String> structure;
+    private Map<String, String> newData;
+    private Map<String, String> oldData;
+    private List structure;
 
     public String getSchemaName() {
         return schemaName;
@@ -25,14 +26,6 @@ public class Row {
 
     public void setSchemaName(String schemaName) {
         this.schemaName = schemaName;
-    }
-
-    public String getSql() {
-        return Sql;
-    }
-
-    public void setSql(String sql) {
-        Sql = sql;
     }
 
     public String getTableName() {
@@ -51,6 +44,14 @@ public class Row {
         this.mode = mode;
     }
 
+    public String getSql() {
+        return Sql;
+    }
+
+    public void setSql(String sql) {
+        Sql = sql;
+    }
+
     public String getOperator() {
         return operator;
     }
@@ -59,27 +60,27 @@ public class Row {
         this.operator = operator;
     }
 
-    public HashMap<String, String> getNewData() {
+    public Map<String, String> getNewData() {
         return newData;
     }
 
-    public void setNewData(HashMap<String, String> newData) {
+    public void setNewData(Map<String, String> newData) {
         this.newData = newData;
     }
 
-    public HashMap<String, String> getOldData() {
+    public Map<String, String> getOldData() {
         return oldData;
     }
 
-    public void setOldData(HashMap<String, String> oldData) {
+    public void setOldData(Map<String, String> oldData) {
         this.oldData = oldData;
     }
 
-    public HashMap<String, String> getStructure() {
+    public List getStructure() {
         return structure;
     }
 
-    public void setStructure(HashMap<String, String> structure) {
+    public void setStructure(List structure) {
         this.structure = structure;
     }
 }
