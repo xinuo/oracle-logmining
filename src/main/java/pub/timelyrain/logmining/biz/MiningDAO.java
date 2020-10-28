@@ -31,6 +31,9 @@ public class MiningDAO {
 
     private String miningSql;
 
+    @Value("${mining.init-start-scn}")
+    private int initStartScn;
+
     @Autowired
     public MiningDAO(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -68,6 +71,10 @@ public class MiningDAO {
     }
 
     private long loadStartScn() throws IOException {
+        if(initStartScn != 0) {  //如果启动时设置了起始scn，则优先使用
+            log.info("指定了初始抓取scn {}, 从此处开始获取数据",initStartScn);
+            return initStartScn;
+        }
         File state = new File("state.saved");
 
         if (!state.exists()) {
@@ -137,19 +144,29 @@ public class MiningDAO {
         //将数据库名.表名的数组，转成 数据库名和表名的集合
         for (String tb : tbs) {
             Assert.isTrue(tb.contains("."), "同步表名格式不符合 数据库名.表名 的格式(" + tb + ")");
-            String[] tbArray = tb.split("\\."); // 数据库名.表名
-            String tablesIn = tableGroup.get(tbArray[0]);
-            tablesIn = (tablesIn == null ? "'" + tbArray[1] + "'" : tablesIn + ",'" + tbArray[1] + "'");
-            log.debug("拼装同步表名的过滤sql {}->{}", tbArray[0], tablesIn);
-            tableGroup.put(tbArray[0], tablesIn);
+            String schemaName = tb.split("\\.")[0]; // 数据库名.表名
+            String tableName = tb.split("\\.")[1]; // 数据库名.表名
+            String tablesIn = tableGroup.get(schemaName);
+            if (tableName.contains("*")) {
+                log.debug("{}设置为捕获全部表.", schemaName);
+                tablesIn = "*";
+            } else {
+                tablesIn = (tablesIn == null ? "'" + tableName + "'" : tablesIn + ",'" + tableName + "'");
+                log.debug("拼装同步表名的过滤sql {}->{}", schemaName, tablesIn);
+            }
+            tableGroup.put(schemaName, tablesIn);
         }
 
         StringBuilder sql = new StringBuilder();
 
-        for (String dbName : tableGroup.keySet()) {
+        for (String schemaName : tableGroup.keySet()) {
             if (sql.length() != 0) sql.append(" or ");
 
-            sql.append(String.format(" SEG_OWNER = '%s' and TABLE_NAME in (%s)", dbName, tableGroup.get(dbName)));
+            String tablesIn = tableGroup.get(schemaName);
+            if (tablesIn.startsWith("*"))
+                sql.append(String.format(" SEG_OWNER = '%s' ", schemaName));
+            else
+                sql.append(String.format(" SEG_OWNER = '%s' and TABLE_NAME in (%s)", schemaName, tableGroup.get(schemaName)));
         }
         sql.insert(0, " AND ( ").append(" )");
         sql.insert(0, Constants.QUERY_REDO);
