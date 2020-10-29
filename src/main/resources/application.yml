@@ -7,10 +7,10 @@ spring:
     password: kminerpass
 
   rabbitmq:
-    host: 192.168.1.30
+    host: 192.168.10.233
     port: 5672
-    username: user
-    password: password
+    username: admin
+    password: admin
 
 mining:
   init-start-scn: 0
@@ -18,4 +18,4 @@ mining:
   polling-interval: 5
   polling-size: 1000
 
-  mq-exchage-name: topicExchange
+  mq-exchage-name: amq.topic

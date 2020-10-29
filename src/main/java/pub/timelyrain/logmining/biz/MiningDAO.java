@@ -14,7 +14,6 @@ import pub.timelyrain.logmining.pojo.Row;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -117,11 +116,12 @@ public class MiningDAO {
             //计数
             Counter.addCount();
             //读取REDO
-            long scn = rs.getLong("scn");
+            long scn = rs.getLong("SCN");
             int csf = rs.getInt("CSF");
-            String schema = rs.getString("");
-            String tableName = rs.getString("");
+            String schema = rs.getString("SEG_OWNER");
+            String tableName = rs.getString("TABLE_NAME");
             String redo = rs.getString("SQL_REDO");
+            String rowId = rs.getString("ROW_ID");
             if (csf == 1) {     //如果REDO被截断
                 while (rs.next()) {  //继续查询下一条REDO
                     redo += rs.getString("SQL_REDO");
@@ -132,7 +132,7 @@ public class MiningDAO {
                 }
             }
             if (csf == 0) {
-                convertAndDelivery(schema, tableName, redo);
+                convertAndDelivery(schema, tableName, rowId, redo);
             } else {
                 log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
             }
@@ -181,11 +181,12 @@ public class MiningDAO {
         return sql.toString();
     }
 
-    private void convertAndDelivery(String schema, String tableName, String redo) {
+    private void convertAndDelivery(String schema, String tableName, String rowId, String redo) {
         try {
             Row row = sqlExtractor.parse(schema, tableName, redo);
+            row.setRowId(rowId);
             rabbitTemplate.convertAndSend(mqExchangeName, schema + "." + tableName, row);
-
+            log.debug("发送数据,类型{}.{} {}.{} {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getRowId());
         } catch (Exception e) {
             log.error("转换REDO和分发数据错误", e);
         }

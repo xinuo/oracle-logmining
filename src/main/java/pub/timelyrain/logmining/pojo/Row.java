@@ -16,12 +16,21 @@ public class Row {
      * INSERT,UPDATE,DELETE
      */
     private String operator;
+    private String rowId;
     private Map<String, String> newData;
     private Map<String, String> oldData;
     private List structure;
 
     public String getSchemaName() {
         return schemaName;
+    }
+
+    public String getRowId() {
+        return rowId;
+    }
+
+    public void setRowId(String rowId) {
+        this.rowId = rowId;
     }
 
     public void setSchemaName(String schemaName) {

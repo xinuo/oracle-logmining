@@ -18,7 +18,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.pojo.Row;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 @Component
 public class SQLExtractor {
@@ -58,6 +61,8 @@ public class SQLExtractor {
         }
 
         row.setSql(sql);
+        row.setSchemaName(schema);
+        row.setTableName(table);
         //查询数据字典
         if (!TABLE_DICT.containsKey(schema + "." + table)) {
             loadTableDict(schema, table);
@@ -77,8 +82,8 @@ public class SQLExtractor {
         row.setOperator(OPERATOR_INSERT);
         row.setMode(MODE_DML);
 
-        row.setSchemaName(insert.getTable().getSchemaName());
-        row.setTableName(insert.getTable().getName());
+//        row.setSchemaName(insert.getTable().getSchemaName());
+//        row.setTableName(insert.getTable().getName());
         LinkedHashMap<String, String> newData = new LinkedHashMap<>();
 
         for (Column c : insert.getColumns()) {
@@ -101,8 +106,8 @@ public class SQLExtractor {
         Row row = new Row();
         row.setOperator(OPERATOR_UPDATE);
         row.setMode(MODE_DML);
-        row.setSchemaName(update.getTable().getSchemaName());
-        row.setTableName(update.getTable().getName());
+//        row.setSchemaName(update.getTable().getSchemaName());
+//        row.setTableName(update.getTable().getName());
         LinkedHashMap<String, String> newData = new LinkedHashMap<>();
         LinkedHashMap<String, String> oldData = new LinkedHashMap<>();
 
