@@ -5,6 +5,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.Statement;
@@ -121,8 +122,6 @@ public class SQLExtractor {
             }
         });
 
-        newData.putAll(oldData);
-
         for (Column c : update.getColumns()) {
             newData.put(parseValue(c.getColumnName()), null);
         }
@@ -135,7 +134,11 @@ public class SQLExtractor {
             newData.put(key, value);
         }
 
-        row.setNewData(newData);
+        //将未修改的数据复制到newdata内
+        LinkedHashMap<String, String> allFieldNewData = new LinkedHashMap<>();
+        allFieldNewData.putAll(oldData);
+        allFieldNewData.putAll(newData);
+        row.setNewData(allFieldNewData);
         row.setOldData(oldData);
         return row;
     }
@@ -153,6 +156,12 @@ public class SQLExtractor {
                 String value = parseValue(expr.getRightExpression().toString());
                 oldData.put(columnName, value);
 
+            }
+
+            @Override
+            public void visit(IsNullExpression expr) {
+                String columnName = parseValue(expr.getLeftExpression().toString());
+                oldData.put(columnName, null);
             }
         });
 

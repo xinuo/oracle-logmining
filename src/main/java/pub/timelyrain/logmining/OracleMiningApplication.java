@@ -8,7 +8,6 @@ public class OracleMiningApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(OracleMiningApplication.class, args);
-
     }
 
 }
