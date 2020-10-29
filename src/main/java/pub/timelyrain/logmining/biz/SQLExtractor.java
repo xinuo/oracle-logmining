@@ -111,6 +111,18 @@ public class SQLExtractor {
         LinkedHashMap<String, String> newData = new LinkedHashMap<>();
         LinkedHashMap<String, String> oldData = new LinkedHashMap<>();
 
+        update.getWhere().accept(new ExpressionVisitorAdapter() {
+            @Override
+            public void visit(final EqualsTo expr) {
+                String columnName = parseValue(expr.getLeftExpression().toString());
+                String value = parseValue(expr.getRightExpression().toString());
+                oldData.put(columnName, value);
+
+            }
+        });
+
+        newData.putAll(oldData);
+
         for (Column c : update.getColumns()) {
             newData.put(parseValue(c.getColumnName()), null);
         }
@@ -122,16 +134,6 @@ public class SQLExtractor {
             String value = parseValue(o.toString());
             newData.put(key, value);
         }
-
-        update.getWhere().accept(new ExpressionVisitorAdapter() {
-            @Override
-            public void visit(final EqualsTo expr) {
-                String columnName = parseValue(expr.getLeftExpression().toString());
-                String value = parseValue(expr.getRightExpression().toString());
-                oldData.put(columnName, value);
-
-            }
-        });
 
         row.setNewData(newData);
         row.setOldData(oldData);

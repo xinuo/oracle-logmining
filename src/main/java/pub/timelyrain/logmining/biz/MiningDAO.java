@@ -37,8 +37,8 @@ public class MiningDAO {
     private int initStartScn;
     @Value("${mining.rabbit-exchage-name}")
     private String mqExchangeName;
-    @Value("${rabbit-queue-prefix}")
-    private String mqQueuePrefix;
+    @Value("${mining.rabbit-routing-prefix}")
+    private String routingPrefix;
 
     private String miningSql;
 
@@ -187,7 +187,7 @@ public class MiningDAO {
         try {
             Row row = sqlExtractor.parse(schema, tableName, redo);
             row.setRowId(rowId);
-            rabbitTemplate.convertAndSend(mqExchangeName, mqQueuePrefix + "." + schema + "." + tableName, row);
+            rabbitTemplate.convertAndSend(mqExchangeName, routingPrefix + "." + schema + "." + tableName, row);
             log.debug("发送数据,类型{}.{} {}.{} {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getRowId());
         } catch (Exception e) {
             log.error("转换REDO和分发数据错误", e);

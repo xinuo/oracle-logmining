@@ -28,3 +28,11 @@ cdb模式下
 ```sql
 
 ```
+
+
+
+
+启动时可以手工指定起始同步的scn
+```shell script
+java -jar logmining.jar --mining.init-start-scn=3161620
+```
