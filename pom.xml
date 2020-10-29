@@ -10,7 +10,7 @@
     </parent>
     <groupId>pub.timelyrain</groupId>
     <artifactId>logmining</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1</version>
     <name>oracle-logmining</name>
     <description>mining oracle archivelog for sync data</description>
 
