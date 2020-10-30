@@ -166,7 +166,7 @@ public class MiningDAO {
                 return;
 
             try {
-//                log.info(scn);
+                log.debug(scn);
                 //读取REDO
                 int csf = rs.getInt("CSF");
                 String schema = rs.getString("SEG_OWNER");
