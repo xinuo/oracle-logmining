@@ -10,9 +10,14 @@ public class Counter extends Thread {
     Logger log = LogManager.getLogger(MiningDAO.class);
 
     private static final AtomicLong count = new AtomicLong(0);
+    public static long currentSCN;
+    public static long currentSequence;
 
 
-    public static void addCount() {
+    public static void addCount(long currentSCN, long currentSequence) {
+        Counter.currentSCN = currentSCN;
+        Counter.currentSequence = currentSequence;
+
         count.addAndGet(1);
     }
 
