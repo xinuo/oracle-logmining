@@ -68,10 +68,11 @@ public class MiningDAO {
 
     }
 
-    private void saveMiningState(long scn, long commitScn, int sequence) {
+    private void saveMiningState(long scn, long commitScn, int sequence, String timestamp) {
         state.setStartScn(scn);
         state.setLastCommitScn(commitScn);
         state.setLastSequence(sequence);
+        state.setLastTime(timestamp);
 
         String stateStr = null;
         try {
@@ -108,7 +109,7 @@ public class MiningDAO {
                 log.info("上次截止点 {} 前存在未传输数据，从 {} 开始本次传输", lastState.getStartScn(), scn);
                 lastState.setStartScn(scn);
             } else {
-                log.info("上次截止点 {} 前有没有未传输数据，从上次截止点开始本次传输");
+                log.info("上次截止点 {} 前有没有未传输数据，从上次截止点开始本次传输", lastState.getStartScn());
             }
             return lastState;
         }
@@ -160,6 +161,7 @@ public class MiningDAO {
             long scn = rs.getLong("SCN");
             long commitScn = rs.getLong("COMMIT_SCN");
             int sequence = rs.getInt("SEQUENCE#");
+            String timestamp = rs.getTimestamp("TIMESTAMP").toString();
             //计数
             Counter.addCount(scn, sequence);
             if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence)
@@ -188,7 +190,7 @@ public class MiningDAO {
                     log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
                 }
             } finally {
-                saveMiningState(scn, commitScn, sequence);
+                saveMiningState(scn, commitScn, sequence, timestamp);
             }
 
         });
