@@ -156,18 +156,17 @@ public class MiningDAO {
 
         log.debug("提取REDO日志 {}", miningSql);
         jdbcTemplate.query(miningSql, (rs) -> {
-            //计数
-            Counter.addCount();
-
             //读取日志位置
             long scn = rs.getLong("SCN");
             long commitScn = rs.getLong("COMMIT_SCN");
             int sequence = rs.getInt("SEQUENCE#");
-
+            //计数
+            Counter.addCount(scn, sequence);
             if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence)
                 return;
+
             try {
-                log.info(scn);
+//                log.info(scn);
                 //读取REDO
                 int csf = rs.getInt("CSF");
                 String schema = rs.getString("SEG_OWNER");
@@ -189,7 +188,7 @@ public class MiningDAO {
                     log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
                 }
             } finally {
-                saveMiningState(scn,commitScn,sequence);
+                saveMiningState(scn, commitScn, sequence);
             }
 
         });
