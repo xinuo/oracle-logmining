@@ -13,7 +13,7 @@ spring:
     password: admin
 
 mining:
-  init-start-scn: 0
+  init-start-time: NULL
   sync-table: ciicfs_test.*,ciicfs.b001
 #  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
   polling-interval: 5
@@ -21,3 +21,4 @@ mining:
 
   rabbit-exchage-name: sync.exchange
   rabbit-routing-prefix: sync
+debug: true

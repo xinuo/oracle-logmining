@@ -1,5 +1,6 @@
 package pub.timelyrain.logmining.biz;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import pub.timelyrain.logmining.pojo.MiningState;
 import pub.timelyrain.logmining.pojo.Row;
 
 import java.io.File;
@@ -33,23 +35,24 @@ public class MiningDAO {
     private int pollingInterval;
     @Value("${mining.polling-size}")
     private int pollingSize;
-    @Value("${mining.init-start-scn}")
-    private int initStartScn;
+    @Value("${mining.init-start-time}")
+    private String initStartTime;
     @Value("${mining.rabbit-exchage-name}")
     private String mqExchangeName;
     @Value("${mining.rabbit-routing-prefix}")
     private String routingPrefix;
 
     private String miningSql;
+    private MiningState state;
 
     public void startMining() {
         //检查
         try {
-
-            long startScn = loadStartScn();
             Assert.hasText(tables, "同步表名不能为空");
             Assert.isTrue(tables.contains("."), "同步表名需要为 数据库名.表名 的格式");
             long currentScn = loadDatabaseCurrentScn();
+            state = loadStartScn();
+            long startScn = state.getStartScn();
             Assert.isTrue(startScn <= currentScn, String.format("起始SCN %d 大于 当前SCN %d,请检查起始SCN配置", startScn, currentScn));
 
             miningSql = buildMiningSql();
@@ -57,8 +60,6 @@ public class MiningDAO {
             while (true) {
                 long endScn = polling(startScn);
                 startScn = endScn;
-
-                saveEndScn(endScn);
             }
 
         } catch (Exception e) {
@@ -67,28 +68,67 @@ public class MiningDAO {
 
     }
 
-    private void saveEndScn(long endScn) throws IOException {
-        File state = new File("state.saved");
-        FileUtils.writeStringToFile(state, String.valueOf(endScn), "UTF-8", false);
-        log.info("save state to {}", state.getPath());
+    private void saveMiningState(long scn, long commitScn, int sequence) {
+        state.setStartScn(scn);
+        state.setLastCommitScn(commitScn);
+        state.setLastSequence(sequence);
+
+        String stateStr = null;
+        try {
+            File state = new File("state.saved");
+            stateStr = new ObjectMapper().writeValueAsString(this.state);
+            FileUtils.writeStringToFile(state, stateStr, "UTF-8", false);
+            log.debug("save state to {}", state.getPath());
+        } catch (Exception e) {
+            log.error("写入传输状态错误,当前传输信息为 " + stateStr, e);
+        }
     }
 
-    private long loadStartScn() throws IOException {
-        if (initStartScn != 0) {  //如果启动时设置了起始scn，则优先使用
-            log.info("指定了初始抓取scn {}, 从此处开始获取数据", initStartScn);
-            return initStartScn;
-        }
-        File state = new File("state.saved");
+    private MiningState loadStartScn() throws IOException {
 
-        if (!state.exists()) {
-            long scn = loadDatabaseCurrentScn(); //不存在使用数据库当前scn
-            log.info("未找到状态文件，从当前scn开始 {}", scn);
-            return scn;
+
+        //最优 读取上次停止的日志文件
+        File stateFile = new File("state.saved");
+        if (stateFile.exists()) {
+            String stateStr = FileUtils.readFileToString(stateFile, "utf-8");
+            ObjectMapper om = new ObjectMapper();
+            MiningState lastState = om.readValue(stateStr, MiningState.class);
+            log.info("从状态文件中读取上次执行的scn末位 {}", stateStr);
+
+            if (initStartTime == null || "NULL".equalsIgnoreCase(initStartTime)) {
+                log.warn("发现上次分析截止commitScn为{} ，请输入归档日志检索的开始时间，以查找停止传输时是否存在未提交但需传输的数据。开始时间通过springboot启动参数 --mining.init-start-time=YYYYMMDDHH24MI 传入");
+                System.exit(0);
+            }
+            //如果指定了开始时间，则查询开始时间对应的scn， 同时检索大于MiningState的commitScn的最小scn，优先用。
+            jdbcTemplate.update(Constants.MINING_START_BY_TIME, initStartTime);
+            long scn = jdbcTemplate.queryForObject(Constants.QUERY_MINING_START_SCN, Long.class, lastState.getLastCommitScn()).longValue();
+            jdbcTemplate.update(Constants.MINING_END);
+
+            if (scn < lastState.getStartScn()) {
+                log.info("上次截止点 {} 前存在未传输数据，从 {} 开始本次传输", lastState.getStartScn(), scn);
+                lastState.setStartScn(scn);
+            } else {
+                log.info("上次截止点 {} 前有没有未传输数据，从上次截止点开始本次传输");
+            }
+            return lastState;
         }
-        //读取配置文件的scn
-        String scn = FileUtils.readFileToString(state, "utf-8");
-        log.info("从状态文件中读取上次执行的scn末位,({} -> {})", scn, state.getPath());
-        return Long.parseLong(scn);
+
+        MiningState lastState = new MiningState();
+        //其次通过变更时间指定
+        if (initStartTime != null && !"NULL".equalsIgnoreCase(initStartTime)) {
+            jdbcTemplate.update(Constants.MINING_START_BY_TIME, initStartTime);
+            long scn = jdbcTemplate.queryForObject(Constants.QUERY_MINING_START_SCN, Long.class, 0).longValue();
+
+            log.info("根据开始时间查询，开始传输scn为 {}", scn);
+            lastState.setStartScn(scn);
+            return lastState;
+        }
+        //根据当前时间
+        long currentScn = loadDatabaseCurrentScn();
+        log.info("以数据库当前时间，为开始传输的scn {}", currentScn);
+        lastState.setStartScn(currentScn);
+
+        return lastState;
 
     }
 
@@ -102,6 +142,7 @@ public class MiningDAO {
 
         if (startScn == currentScn) {
             String msg = String.format("已捕获至日志末尾,暂停 %d 秒. (起始SCN %d 等于 当前SCN %d)", pollingInterval, startScn, currentScn);
+            log.info(msg);
             TimeUnit.SECONDS.sleep(pollingInterval);
         }
         //计算分析一次归档的终点scn，性能调优参数，在一次分析的范围大小与数据库压力之间调整，
@@ -109,35 +150,48 @@ public class MiningDAO {
         long endScn = Math.min(startScn + pollingSize, currentScn);
 
         //启动日志分析
-        log.debug("开始分析REDO日志 " + Constants.MINING_START.replaceAll("\\?", "{}"), startScn, endScn);
-        jdbcTemplate.update(Constants.MINING_START, startScn, endScn);
-        jdbcTemplate.setFetchSize(1000);
+        log.info("开始分析REDO日志 " + Constants.MINING_START_ENDLESS.replaceAll("\\?", "{}"), startScn);
+        jdbcTemplate.update(Constants.MINING_START_ENDLESS, startScn);
+        jdbcTemplate.setFetchSize(1);
 
         log.debug("提取REDO日志 {}", miningSql);
         jdbcTemplate.query(miningSql, (rs) -> {
             //计数
             Counter.addCount();
-            //读取REDO
+
+            //读取日志位置
             long scn = rs.getLong("SCN");
-            int csf = rs.getInt("CSF");
-            String schema = rs.getString("SEG_OWNER");
-            String tableName = rs.getString("TABLE_NAME");
-            String redo = rs.getString("SQL_REDO");
-            String rowId = rs.getString("ROW_ID");
-            if (csf == 1) {     //如果REDO被截断
-                while (rs.next()) {  //继续查询下一条REDO
-                    redo += rs.getString("SQL_REDO");
-                    if (0 == rs.getInt("CSF")) {  //
-                        csf = 0;
-                        break;  //退出循环
+            long commitScn = rs.getLong("COMMIT_SCN");
+            int sequence = rs.getInt("SEQUENCE#");
+
+            if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence)
+                return;
+            try {
+                log.info(scn);
+                //读取REDO
+                int csf = rs.getInt("CSF");
+                String schema = rs.getString("SEG_OWNER");
+                String tableName = rs.getString("TABLE_NAME");
+                String redo = rs.getString("SQL_REDO");
+                String rowId = rs.getString("ROW_ID");
+                if (csf == 1) {     //如果REDO被截断
+                    while (rs.next()) {  //继续查询下一条REDO
+                        redo += rs.getString("SQL_REDO");
+                        if (0 == rs.getInt("CSF")) {  //
+                            csf = 0;
+                            break;  //退出循环
+                        }
                     }
                 }
+                if (csf == 0) {
+                    convertAndDelivery(schema, tableName, rowId, redo);
+                } else {
+                    log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
+                }
+            } finally {
+                saveMiningState(scn,commitScn,sequence);
             }
-            if (csf == 0) {
-                convertAndDelivery(schema, tableName, rowId, redo);
-            } else {
-                log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
-            }
+
         });
 
         //关闭日志分析
