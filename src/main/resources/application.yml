@@ -12,6 +12,9 @@ spring:
     username: admin
     password: admin
 
+  application:
+    name: oracle-mining
+
 mining:
   init-start-time: NULL
   sync-table: ciicfs_test.*,ciicfs.b001

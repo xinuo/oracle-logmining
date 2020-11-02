@@ -79,7 +79,7 @@ public class MiningDAO {
             File state = new File("state.saved");
             stateStr = new ObjectMapper().writeValueAsString(this.state);
             FileUtils.writeStringToFile(state, stateStr, "UTF-8", false);
-            log.debug("save state to {}", state.getPath());
+            log.debug("saved state {}", stateStr);
         } catch (Exception e) {
             log.error("写入传输状态错误,当前传输信息为 " + stateStr, e);
         }
@@ -243,7 +243,8 @@ public class MiningDAO {
             Row row = sqlExtractor.parse(schema, tableName, redo);
             row.setRowId(rowId);
             rabbitTemplate.convertAndSend(mqExchangeName, routingPrefix + "." + schema + "." + tableName, row);
-            log.debug("发送数据,类型{}.{} {}.{} {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getRowId());
+
+            log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
         } catch (Exception e) {
             log.error("转换REDO和分发数据错误", e);
         }

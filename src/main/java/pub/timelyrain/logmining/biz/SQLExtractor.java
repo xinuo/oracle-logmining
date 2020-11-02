@@ -29,7 +29,7 @@ public class SQLExtractor {
     private static Logger log = LogManager.getLogger(SQLExtractor.class);
 
     public static final String MODE_DML = "DML";
-    public static final String MODE_DDL = "DML";
+    public static final String MODE_DDL = "DDL";
     public static final String OPERATOR_INSERT = "INSERT";
     public static final String OPERATOR_UPDATE = "UPDATE";
     public static final String OPERATOR_DELETE = "DELETE";
