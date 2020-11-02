@@ -21,7 +21,6 @@ jobs:
       with:
         java-version: 1.8
     - name: Build with Maven
-      run: mvn -B package --file pom.xml
-
-    - name deploy to registry
-      run: mvn deploy -Dregistry=https://maven.pkg.github.com/timelyrain80 -Dtoken=GH_TOKEN
+      run: 
+        mvn -B package --file pom.xml
+        mvn deploy -Dregistry=https://maven.pkg.github.com/timelyrain80 -Dtoken=GH_TOKEN
