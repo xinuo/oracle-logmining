@@ -12,6 +12,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerContainerFactory;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,6 +21,12 @@ import java.util.HashMap;
 @Configuration
 public class RabbitMQConfig {
     private static Logger log = LogManager.getLogger(RabbitMQConfig.class);
+
+    @Value("${mining.rabbit-exchange-name}")
+    private String exchangeName;
+    @Value("${mining.rabbit-queue-name}")
+    private String queueName;
+
     @Bean
     public RabbitListenerContainerFactory<?> rabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
@@ -34,8 +41,12 @@ public class RabbitMQConfig {
     @Bean
     public RabbitTemplate rabbitTemplate(CachingConnectionFactory factory) {
         log.info("应用 Jackson2JsonMessageConverter 序列化 MQ对象");
+
+
+
+
         RabbitTemplate rabbitTemplate = new RabbitTemplate(factory);
-        //MessageConverter 为 Jackson2JsonMessageConverter
+        //        //MessageConverter 为 Jackson2JsonMessageConverter
         ObjectMapper om = new ObjectMapper();
         om.setSerializationInclusion(JsonInclude.Include.ALWAYS);
         rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter(om));
@@ -43,14 +54,28 @@ public class RabbitMQConfig {
     }
 
 
-
     public static void main(String[] args) throws JsonProcessingException {
         ObjectMapper om = new ObjectMapper();
         om.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         HashMap m = new HashMap();
-        m.put("aa",null);
-        m.put("bb","bb");
+        m.put("aa", null);
+        m.put("bb", "bb");
         System.out.println(om.writeValueAsString(m));
     }
 
+    public String getExchangeName() {
+        return exchangeName;
+    }
+
+    public void setExchangeName(String exchangeName) {
+        this.exchangeName = exchangeName;
+    }
+
+    public String getQueueName() {
+        return queueName;
+    }
+
+    public void setQueueName(String queueName) {
+        this.queueName = queueName;
+    }
 }

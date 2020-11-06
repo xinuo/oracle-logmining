@@ -10,6 +10,9 @@ public class Row {
      * DML,DDL
      */
     private String mode;
+    private String timestamp;
+    private long scn;
+    private long commitScn;
     private String Sql;
 
     /**
@@ -23,6 +26,30 @@ public class Row {
 
     public String getSchemaName() {
         return schemaName;
+    }
+
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public long getScn() {
+        return scn;
+    }
+
+    public void setScn(long scn) {
+        this.scn = scn;
+    }
+
+    public long getCommitScn() {
+        return commitScn;
+    }
+
+    public void setCommitScn(long commitScn) {
+        this.commitScn = commitScn;
     }
 
     public String getRowId() {

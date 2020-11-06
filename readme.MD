@@ -26,10 +26,19 @@ alter user kminer quota unlimited on users;
 ```
 cdb模式下
 ```sql
-
+create role c##mining_role;
+grant  create session,execute_catalog_role,select any transaction ,select any dictionary to c##mining_role;
+create user c##kminer identified by kminerpass;
+grant  c##mining_role to c##kminer;
+alter user c##kminer quota unlimited on users;
 ```
 
-
+在oracle里安装logminer包
+```sql
+sqlplus sys@orclcdb as sysdba
+@$ORACLE_HOME/rdbms/admin/dbmslm.sql; --用来分析日志文件
+@$ORACLE_HOME/rdbms/admin/dbmslmd.sql; --用来创建数据字典文件
+```
 
 
 启动时可以手工指定起始同步的scn

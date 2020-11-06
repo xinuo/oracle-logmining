@@ -22,6 +22,7 @@ mining:
   polling-interval: 5
   polling-size: 1000
 
-  rabbit-exchage-name: sync.exchange
+  rabbit-exchange-name: mining-exchange
+  rabbit-queue-name: mining-data-queue
   rabbit-routing-prefix: sync
 debug: true

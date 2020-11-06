@@ -68,6 +68,73 @@ public class MiningDAO {
 
     }
 
+    private long polling(long startScn) throws InterruptedException {
+        //查询数据库当前scn
+        long currentScn = loadDatabaseCurrentScn();
+
+        if (startScn == currentScn) {
+            String msg = String.format("已捕获至日志末尾,暂停 %d 秒. (起始SCN %d 等于 当前SCN %d)", pollingInterval, startScn, currentScn);
+            log.info(msg);
+            TimeUnit.SECONDS.sleep(pollingInterval);
+        }
+        //计算分析一次归档的终点scn，性能调优参数，在一次分析的范围大小与数据库压力之间调整，
+        //endScn不应大于数据库最大scn值
+//        long endScn = Math.min(startScn + pollingSize, currentScn);
+        long endScn[] = new long[1];
+        endScn[0] = startScn;
+        //启动日志分析
+        log.info("开始分析REDO日志 " + Constants.MINING_START_ENDLESS.replaceAll("\\?", "{}"), startScn);
+        jdbcTemplate.update(Constants.MINING_START_ENDLESS, startScn);
+        jdbcTemplate.setFetchSize(1);
+
+        log.debug("提取REDO日志 {}", miningSql);
+        jdbcTemplate.query(miningSql, (rs) -> {
+            //读取日志位置
+            long scn = rs.getLong("SCN");
+            long commitScn = rs.getLong("COMMIT_SCN");
+            int sequence = rs.getInt("SEQUENCE#");
+            String timestamp = rs.getTimestamp("TIMESTAMP").toString();
+            //计数
+            Counter.addCount(scn, sequence);
+            if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence)
+                return;
+
+            try {
+                //log.debug(scn);
+                //读取REDO
+                int csf = rs.getInt("CSF");
+                String schema = rs.getString("SEG_OWNER");
+                String tableName = rs.getString("TABLE_NAME");
+                String redo = rs.getString("SQL_REDO");
+                String rowId = rs.getString("ROW_ID");
+                if (csf == 1) {     //如果REDO被截断
+                    while (rs.next()) {  //继续查询下一条REDO
+                        redo += rs.getString("SQL_REDO");
+                        if (0 == rs.getInt("CSF")) {  //
+                            csf = 0;
+                            break;  //退出循环
+                        }
+                    }
+                }
+                if (csf == 0) {
+                    convertAndDelivery(schema, tableName, redo, rowId, scn, commitScn, timestamp);
+                } else {
+                    log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
+                }
+            } finally {
+                saveMiningState(scn, commitScn, sequence, timestamp);
+                endScn[0] = scn;
+            }
+
+        });
+
+        //关闭日志分析
+        log.debug("停止分析REDO日志 {}", Constants.MINING_END);
+        jdbcTemplate.update(Constants.MINING_END);
+        return endScn[0];  //返回本次结束的scn，作为下一次轮询的startScn
+    }
+
+
     private void saveMiningState(long scn, long commitScn, int sequence, String timestamp) {
         state.setStartScn(scn);
         state.setLastCommitScn(commitScn);
@@ -86,8 +153,6 @@ public class MiningDAO {
     }
 
     private MiningState loadStartScn() throws IOException {
-
-
         //最优 读取上次停止的日志文件
         File stateFile = new File("state.saved");
         if (stateFile.exists()) {
@@ -137,70 +202,6 @@ public class MiningDAO {
         return jdbcTemplate.queryForObject(Constants.QUERY_CURRENT_SCN, Long.class);
     }
 
-    private long polling(long startScn) throws InterruptedException {
-        //查询数据库当前scn
-        long currentScn = loadDatabaseCurrentScn();
-
-        if (startScn == currentScn) {
-            String msg = String.format("已捕获至日志末尾,暂停 %d 秒. (起始SCN %d 等于 当前SCN %d)", pollingInterval, startScn, currentScn);
-            log.info(msg);
-            TimeUnit.SECONDS.sleep(pollingInterval);
-        }
-        //计算分析一次归档的终点scn，性能调优参数，在一次分析的范围大小与数据库压力之间调整，
-        //endScn不应大于数据库最大scn值
-        long endScn = Math.min(startScn + pollingSize, currentScn);
-
-        //启动日志分析
-        log.info("开始分析REDO日志 " + Constants.MINING_START_ENDLESS.replaceAll("\\?", "{}"), startScn);
-        jdbcTemplate.update(Constants.MINING_START_ENDLESS, startScn);
-        jdbcTemplate.setFetchSize(1);
-
-        log.debug("提取REDO日志 {}", miningSql);
-        jdbcTemplate.query(miningSql, (rs) -> {
-            //读取日志位置
-            long scn = rs.getLong("SCN");
-            long commitScn = rs.getLong("COMMIT_SCN");
-            int sequence = rs.getInt("SEQUENCE#");
-            String timestamp = rs.getTimestamp("TIMESTAMP").toString();
-            //计数
-            Counter.addCount(scn, sequence);
-            if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence)
-                return;
-
-            try {
-                log.debug(scn);
-                //读取REDO
-                int csf = rs.getInt("CSF");
-                String schema = rs.getString("SEG_OWNER");
-                String tableName = rs.getString("TABLE_NAME");
-                String redo = rs.getString("SQL_REDO");
-                String rowId = rs.getString("ROW_ID");
-                if (csf == 1) {     //如果REDO被截断
-                    while (rs.next()) {  //继续查询下一条REDO
-                        redo += rs.getString("SQL_REDO");
-                        if (0 == rs.getInt("CSF")) {  //
-                            csf = 0;
-                            break;  //退出循环
-                        }
-                    }
-                }
-                if (csf == 0) {
-                    convertAndDelivery(schema, tableName, rowId, redo);
-                } else {
-                    log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
-                }
-            } finally {
-                saveMiningState(scn, commitScn, sequence, timestamp);
-            }
-
-        });
-
-        //关闭日志分析
-        log.debug("停止分析REDO日志 {}", Constants.MINING_END);
-        jdbcTemplate.update(Constants.MINING_END);
-        return endScn;  //返回本次结束的scn，作为下一次轮询的startScn
-    }
-
     private String buildMiningSql() {
         tables = tables.toUpperCase();
         String[] tbs = tables.split(",");
@@ -238,10 +239,13 @@ public class MiningDAO {
         return sql.toString();
     }
 
-    private void convertAndDelivery(String schema, String tableName, String rowId, String redo) {
+    private void convertAndDelivery(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp) {
         try {
             Row row = sqlExtractor.parse(schema, tableName, redo);
             row.setRowId(rowId);
+            row.setScn(scn);
+            row.setCommitScn(commitScn);
+            row.setTimestamp(timestamp);
             rabbitTemplate.convertAndSend(mqExchangeName, routingPrefix + "." + schema + "." + tableName, row);
 
             log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
