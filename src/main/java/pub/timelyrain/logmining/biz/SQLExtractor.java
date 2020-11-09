@@ -138,6 +138,11 @@ public class SQLExtractor {
                 oldData.put(columnName, value);
 
             }
+            @Override
+            public void visit(IsNullExpression expr) {
+                String columnName = parseValue(expr.getLeftExpression().toString());
+                oldData.put(columnName, null);
+            }
         });
 
         for (Column c : update.getColumns()) {
