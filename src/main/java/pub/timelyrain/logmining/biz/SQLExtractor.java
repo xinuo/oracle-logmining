@@ -15,17 +15,18 @@ import net.sf.jsqlparser.statement.update.Update;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.pojo.Row;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 
 @Component
 public class SQLExtractor {
+
+    @Value("${mining.multi-tenant}")
+    private boolean multiTenant;
     private static Logger log = LogManager.getLogger(SQLExtractor.class);
 
     public static final String MODE_DML = "DML";
@@ -35,6 +36,7 @@ public class SQLExtractor {
     public static final String OPERATOR_DELETE = "DELETE";
 
     private static HashMap<String, List> TABLE_DICT = new HashMap<>();
+    private static HashMap<String, List> TABLE_PK = new HashMap<>();
 
     private JdbcTemplate jdbcTemplate;
 
@@ -68,14 +70,30 @@ public class SQLExtractor {
         if (!TABLE_DICT.containsKey(schema + "." + table)) {
             loadTableDict(schema, table);
         }
-        row.setStructure(TABLE_DICT.get(schema + "." + table));
+//        row.setStructure(TABLE_DICT.get(schema + "." + table));
+        row.setPk(TABLE_PK.get(schema + "." + table));
 
         return row;
     }
 
     private void loadTableDict(String schema, String table) {
-        List result = jdbcTemplate.queryForList(Constants.QUEYR_TALBE_DICT, schema, table);
+        List result = null;
+        if (!multiTenant) {
+            result = jdbcTemplate.queryForList(Constants.QUERY_TALBE_DICT, schema, table);
+        } else {
+            String sql = Constants.QUERY_TALBE_DICT_CDB.replaceAll("\\$OWNER\\$", schema);
+            sql = sql.replaceAll("\\$TABLE_NAME\\$", table);
+            result = jdbcTemplate.queryForList(sql);
+        }
+        ArrayList<String> pkList = new ArrayList();
+        for (Object o : result) {
+            Map m = (Map) o;
+            if ("Y".equalsIgnoreCase((String) m.get("PK")))
+                pkList.add((String) m.get("COLUMN_NAME"));
+        }
         TABLE_DICT.put(schema + "." + table, result);
+        TABLE_PK.put(schema + "." + table, pkList);
+
     }
 
     private Row convInsert(Insert insert) {

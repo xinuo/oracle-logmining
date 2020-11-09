@@ -2,8 +2,8 @@
 spring:
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:@192.168.10.20:1521/orcl
-    username: kminer
+    url: jdbc:oracle:thin:@192.168.10.123:1521/orcl
+    username: c##kminer
     password: kminerpass
 
   rabbitmq:
@@ -16,13 +16,15 @@ spring:
     name: oracle-mining
 
 mining:
+  #多租户模式 设置true 普通模式设置 false
+  multi-tenant: true
   init-start-time: NULL
-  sync-table: ciicfs_test.*,ciicfs.b001
+  sync-table: CIICFS_WAGE_TEST.*,ciicfs.b001
 #  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
   polling-interval: 5
   polling-size: 1000
 
-  rabbit-exchange-name: mining-exchange
-  rabbit-queue-name: mining-data-queue
+  rabbit-exchange-name: oracle-sync.exchange
+  rabbit-queue-name: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz
   rabbit-routing-prefix: sync
 debug: true

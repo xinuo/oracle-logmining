@@ -1,9 +1,10 @@
 package pub.timelyrain.logmining.pojo;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
-public class Row {
+public class Row implements Serializable {
     private String schemaName;
     private String tableName;
     /**
@@ -23,6 +24,7 @@ public class Row {
     private Map<String, String> newData;
     private Map<String, String> oldData;
     private List structure;
+    private List<String> pk;
 
     public String getSchemaName() {
         return schemaName;
@@ -118,5 +120,13 @@ public class Row {
 
     public void setStructure(List structure) {
         this.structure = structure;
+    }
+
+    public List<String> getPk() {
+        return pk;
+    }
+
+    public void setPk(List<String> pk) {
+        this.pk = pk;
     }
 }

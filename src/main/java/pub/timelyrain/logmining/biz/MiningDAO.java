@@ -37,7 +37,7 @@ public class MiningDAO {
     private int pollingSize;
     @Value("${mining.init-start-time}")
     private String initStartTime;
-    @Value("${mining.rabbit-exchage-name}")
+    @Value("${mining.rabbit-exchange-name}")
     private String mqExchangeName;
     @Value("${mining.rabbit-routing-prefix}")
     private String routingPrefix;
@@ -161,7 +161,7 @@ public class MiningDAO {
             MiningState lastState = om.readValue(stateStr, MiningState.class);
             log.info("从状态文件中读取上次执行的scn末位 {}", stateStr);
 
-            if (initStartTime == null || "NULL".equalsIgnoreCase(initStartTime)) {
+            if (initStartTime == null || "".equalsIgnoreCase(initStartTime)) {
                 log.warn("发现上次分析截止commitScn为{} ，请输入归档日志检索的开始时间，以查找停止传输时是否存在未提交但需传输的数据。开始时间通过springboot启动参数 --mining.init-start-time=YYYYMMDDHH24MI 传入");
                 System.exit(0);
             }
@@ -181,7 +181,7 @@ public class MiningDAO {
 
         MiningState lastState = new MiningState();
         //其次通过变更时间指定
-        if (initStartTime != null && !"NULL".equalsIgnoreCase(initStartTime)) {
+        if (initStartTime != null && !"".equalsIgnoreCase(initStartTime)) {
             jdbcTemplate.update(Constants.MINING_START_BY_TIME, initStartTime);
             long scn = jdbcTemplate.queryForObject(Constants.QUERY_MINING_START_SCN, Long.class, 0).longValue();
 
