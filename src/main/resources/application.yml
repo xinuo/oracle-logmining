@@ -5,6 +5,7 @@ spring:
     url: jdbc:oracle:thin:@192.168.10.123:1521/orcl
     username: c##kminer
     password: kminerpass
+    type: org.springframework.jdbc.datasource.SingleConnectionDataSource
 
   rabbitmq:
     host: 192.168.10.233
