@@ -117,6 +117,7 @@ public class MiningDAO {
                     }
                 }
                 if (csf == 0) {
+                    log.debug(redo);
                     convertAndDelivery(schema, tableName, redo, rowId, scn, commitScn, timestamp);
                 } else {
                     log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
