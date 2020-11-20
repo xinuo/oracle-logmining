@@ -13,7 +13,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,12 +22,8 @@ import java.util.HashMap;
 @Configuration
 public class RabbitMQConfig {
     private static Logger log = LogManager.getLogger(RabbitMQConfig.class);
-
-    @Value("${mining.rabbit-exchange-name}")
-    private String exchangeName;
-    @Value("${mining.rabbit-queue-name}")
-    private String queueName;
-
+    @Autowired
+    private Env env;
 
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory factory) {
@@ -44,13 +40,13 @@ public class RabbitMQConfig {
 
     private void createExchangeAndQueue(ConnectionFactory factory) {
         RabbitAdmin admin = new RabbitAdmin(factory);
-        FanoutExchange fanoutExchange = new FanoutExchange(exchangeName);
+        FanoutExchange fanoutExchange = new FanoutExchange(env.getExchangeName());
         admin.declareExchange(fanoutExchange);
-        String[] queues = queueName.split(",");
+        String[] queues = env.getQueueName().split(",");
         for (String q : queues) {
             Queue queue = new Queue(q);
             admin.declareQueue(queue);
-            admin.declareBinding(new Binding(q, Binding.DestinationType.QUEUE, exchangeName, "", null));
+            admin.declareBinding(new Binding(q, Binding.DestinationType.QUEUE, env.getExchangeName(), "", null));
         }
     }
 
@@ -61,21 +57,5 @@ public class RabbitMQConfig {
         m.put("aa", null);
         m.put("bb", "bb");
         System.out.println(om.writeValueAsString(m));
-    }
-
-    public String getExchangeName() {
-        return exchangeName;
-    }
-
-    public void setExchangeName(String exchangeName) {
-        this.exchangeName = exchangeName;
-    }
-
-    public String getQueueName() {
-        return queueName;
-    }
-
-    public void setQueueName(String queueName) {
-        this.queueName = queueName;
     }
 }

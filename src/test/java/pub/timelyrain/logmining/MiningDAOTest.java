@@ -4,12 +4,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import pub.timelyrain.logmining.biz.MiningDAO;
+import pub.timelyrain.logmining.biz.MiningService;
 
 @SpringBootTest
 class MiningDAOTest {
     @Autowired
-    private MiningDAO miningDAO;
+    private MiningService miningDAO;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;

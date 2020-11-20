@@ -18,14 +18,19 @@ spring:
 
 mining:
   #多租户模式 设置true 普通模式设置 false
-  multi-tenant: true
-  init-start-time: NULL
-  sync-table: CIICFS_WAGE_TEST.*,ciicfs.b001
-#  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
-  polling-interval: 5
-  polling-size: 1000
+  multiTenant: true
+  maxTransitionMinutes: 10
+  initStartTime: NULL
 
-  rabbit-exchange-name: oracle-sync.exchange
-  rabbit-queue-name: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz
-  rabbit-routing-prefix: sync
-debug: true
+  #同步表名， 竖线后面为推送条件,可以为空,条件为true时不推送.  条件为js语法  字段名变量为大写
+  tables:
+    - CIICFS_WAGE_TEST.A001|A001755 == '00900'
+    - CIICFS_WAGE_TEST.A002
+    - CIICFS.B001
+
+#  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
+  interval: 5
+
+  exchangeName: oracle-sync.exchange
+  queueName: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz
+

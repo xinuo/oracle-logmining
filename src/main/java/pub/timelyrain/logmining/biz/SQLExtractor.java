@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.pojo.Row;
 
+import javax.script.*;
 import java.util.*;
 
 @Component
@@ -37,6 +38,9 @@ public class SQLExtractor {
 
     private static HashMap<String, List> TABLE_DICT = new HashMap<>();
     private static HashMap<String, List> TABLE_PK = new HashMap<>();
+    private static HashMap<String, String> PULL_CONDITION = new HashMap<>();
+
+    private static ScriptEngine ENGINE = new ScriptEngineManager().getEngineByName("ECMAScript");
 
     private JdbcTemplate jdbcTemplate;
 
@@ -45,16 +49,23 @@ public class SQLExtractor {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    public static void addRowCondition(String table, String condition) {
+        PULL_CONDITION.put(table.toUpperCase(), condition);
+    }
+
     public Row parse(String schema, String table, String sql) throws JSQLParserException {
         Statement st = CCJSqlParserUtil.parse(sql);
         Row row;
 
         if (st instanceof Insert) {
             row = convInsert((Insert) st);
+            if(!checkCondition(schema + "." + table,row.getNewData())) return null;
         } else if (st instanceof Update) {
             row = convUpdate((Update) st);
+            if(!checkCondition(schema + "." + table,row.getNewData())) return null;
         } else if (st instanceof Delete) {
             row = convDelete((Delete) st);
+            if(!checkCondition(schema + "." + table,row.getOldData())) return null;
         } else {
             row = new Row();
             row.setMode(MODE_DDL);
@@ -75,6 +86,25 @@ public class SQLExtractor {
 
         return row;
     }
+
+    private boolean checkCondition(String tableName, Map<String, String> data) {
+        if (!PULL_CONDITION.containsKey(tableName))
+            return true;
+
+        String condition = PULL_CONDITION.get(tableName);
+        HashMap<String,Object> dataObj = new HashMap();
+        dataObj.putAll(data);
+        ENGINE.setBindings(new SimpleBindings(dataObj), ScriptContext.ENGINE_SCOPE);
+        try {
+            boolean result = (boolean) ENGINE.eval(condition);
+            log.debug("运行拉取条件 {}, 值为 {}", condition, result);
+            return result;
+        } catch (ScriptException e) {
+            log.error("运行拉取条件错误 {} ", condition, e);
+            return false;
+        }
+    }
+
 
     private void loadTableDict(String schema, String table) {
         List result = null;
@@ -138,6 +168,7 @@ public class SQLExtractor {
                 oldData.put(columnName, value);
 
             }
+
             @Override
             public void visit(IsNullExpression expr) {
                 String columnName = parseValue(expr.getLeftExpression().toString());

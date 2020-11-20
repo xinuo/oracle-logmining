@@ -2,10 +2,11 @@ package pub.timelyrain.logmining.pojo;
 
 public class MiningState {
 
-    private long lastCommitScn;
+    private long lastCommitScn = 0;
     private int lastSequence;
     private String lastTime;
-    private long startScn;
+    private long lastTimestamp;
+    private long startScn = 0;
 
     public long getLastCommitScn() {
         return lastCommitScn;
