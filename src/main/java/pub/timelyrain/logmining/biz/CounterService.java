@@ -17,8 +17,6 @@ public class CounterService {
     private static final Logger log = LogManager.getLogger(MiningService.class);
     private static final List<Counter> traceList = new Vector();
 
-//    public static long currentSCN;
-//    public static long currentSequence;
 
     public void addCount(long currentSCN, long currentSequence) {
         if (traceList.isEmpty()) {

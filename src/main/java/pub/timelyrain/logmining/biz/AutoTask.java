@@ -5,31 +5,29 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.config.Env;
 
 @Component
 public class AutoTask implements ApplicationRunner {
     private final Logger log = LogManager.getLogger(AutoTask.class);
-    private final MiningService miningDAO;
+    private final MiningService miningService;
     private final Env env;
-    private final JdbcTemplate jdbcTemplate;
 
-    public AutoTask(MiningService miningDAO, Env env, JdbcTemplate jdbcTemplate) {
-        this.miningDAO = miningDAO;
-        this.env = env;
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     @Autowired
+    public AutoTask(MiningService miningService, Env env) {
+        this.miningService = miningService;
+        this.env = env;
+    }
+
+
 
 
     @Override
-    public void run(ApplicationArguments args) throws Exception {
-//        new CounterService().start();
+    public void run(ApplicationArguments args) {
         log.info(env.toString());
-        miningDAO.startMining();
+        miningService.startMining();
     }
 
 
