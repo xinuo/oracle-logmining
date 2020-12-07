@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.pojo.Row;
+import pub.timelyrain.logmining.utils.ValueConverter;
 
 import javax.script.*;
 import java.util.*;
@@ -239,6 +240,14 @@ public class SQLExtractor {
             return value.substring(1, value.length() - 1);
         if (value.equalsIgnoreCase("IS NULL") || value.equalsIgnoreCase("NULL"))
             return null;
+
+        //判断入参是否是UNISTR('\4F55\4E16\6C11') 格式
+        if(value.startsWith("UNISTR('") && value.endsWith("')")) {
+            value = value.substring(8, value.length() - 2);
+            return ValueConverter.unicodeToStr(value,"\\\\");
+        }
+        //判断入参是否是blob
+
 
         return value;
     }
