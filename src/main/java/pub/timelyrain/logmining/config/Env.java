@@ -15,7 +15,6 @@ public class Env {
     private Integer interval;
 
     private boolean multiTenant;
-    private String initStartTime;
 
     private String[] tables;
 
@@ -59,13 +58,6 @@ public class Env {
         this.multiTenant = multiTenant;
     }
 
-    public String getInitStartTime() {
-        return initStartTime;
-    }
-
-    public void setInitStartTime(String initStartTime) {
-        this.initStartTime = initStartTime;
-    }
 
     @Override
     public String toString() {
@@ -74,7 +66,6 @@ public class Env {
                 ", queueName='" + queueName + '\'' +
                 ", interval=" + interval +
                 ", multiTenant=" + multiTenant +
-                ", initStartTime='" + initStartTime + '\'' +
                 ", tables=" + Arrays.toString(tables) +
                 '}';
     }
