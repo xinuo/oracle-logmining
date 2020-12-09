@@ -2,13 +2,13 @@
 spring:
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:@192.168.10.123:1521/orcl
-    username: c##kminer
+    url: jdbc:oracle:thin:@192.168.1.33:1521/orcl
+    username: kminer
     password: kminerpass
     type: org.springframework.jdbc.datasource.SingleConnectionDataSource
 
   rabbitmq:
-    host: 192.168.10.233
+    host: 192.168.1.30
     port: 5672
     username: admin
     password: admin
@@ -19,8 +19,8 @@ spring:
 mining:
   #多租户模式 设置true 普通模式设置 false
   multiTenant: true
-  maxTransitionMinutes: 10
-  initStartTime: NULL
+
+
 
   #同步表名， 竖线后面为推送条件,可以为空,条件为true时不推送.  条件为js语法  字段名变量为大写
   tables:
@@ -46,6 +46,7 @@ mining:
     - CIICFC_HRCLOUD_20200902.A019
     - CIICFC_HRCLOUD_20200902.A026
     - CIICFC_HRCLOUD_20200902.CUSTOM_INFO
+    - CIICFS_TEST.EMP_INFO
 
 
 #  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001

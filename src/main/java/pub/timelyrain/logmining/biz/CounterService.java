@@ -18,7 +18,7 @@ public class CounterService {
     private static final List<Counter> traceList = new Vector();
 
 
-    public void addCount(long currentSCN, long currentSequence) {
+    public void addCount() {
         if (traceList.isEmpty()) {
             Counter counter = new Counter();
             traceList.add(counter);

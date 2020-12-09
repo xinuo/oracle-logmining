@@ -15,9 +15,6 @@ import pub.timelyrain.logmining.pojo.Row;
 
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -45,103 +42,58 @@ public class MiningService {
     private MiningState state;
 
     public void startMining() {
-        //检查
-        try {
-            state = loadState();
-            if (state.getStartScn() == 0) {
-                long currentScn = loadDatabaseCurrentScn();
-                state.setStartScn(currentScn);
-                state.setLastCommitScn(currentScn);
-            }
-            //如果startscn ！= commitscn。说明是正常同步时记录的scn，检查这个 scn区段间是否有其他事务当时正在执行，确定最小的起点scn
-            state = checkRestartScn(state);
-
-
-            miningSql = buildMiningSql();
-            long startScn = state.getStartScn();
-            while (true) {
-                long endScn = polling(startScn);
-                startScn = endScn;
-            }
-
-        } catch (Exception e) {
-            log.error("系统运行错误", e);
+        // 读取state的seq
+        state = loadState();
+        // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
+        pollingCheck(state);
+        // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
+        boolean completedLogFlag = checkCompletedLog(state);
+        miningSql = buildMiningSql();
+        while (!Thread.interrupted()) {
+            // 从 seq 开始读取 archive log 或 redo log
+            pollingData(state);
+            // 抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
+            if (completedLogFlag)
+                state.nextLog();
         }
 
     }
 
     /**
-     * 恢复同步时,检查停止时是否有正在同步的事务,需要补传.
+     * 检查当前的seq 是否是最新的日志,如果是最新的日志,表示该日志还可能被追加新的待抓取内容.需要重新读取
      *
      * @param state
      * @return
      */
-    private MiningState checkRestartScn(MiningState state) {
-        //如果startscn ！= commitscn。说明是正常同步时记录的scn，检查这个 scn区段间是否有其他事务当时正在执行，确定最小的起点scn
-        if (state.getStartScn() == state.getLastCommitScn())
-            return state;
+    private boolean checkCompletedLog(MiningState state) {
+        //检查归档日志的最大seq是否大于当前日志编号
+        long maxSequence = jdbcTemplate.queryForObject("select max(sequence#) from v$archived_log", Long.class);
+        if (maxSequence > state.getLastSequence())
+            return true;
+        //检查online日志的最大seq是否大于当前日志编号
+        maxSequence = jdbcTemplate.queryForObject("select max(sequence#) from v$log", Long.class);
+        if (maxSequence > state.getLastSequence())
+            return true;
 
-        log.info("查询同步任务结束时是否有正在进行中的事务需要同步数据");
-        log.info("\t查询scn段内的事务情况");
-        jdbcTemplate.update("begin SYS.DBMS_LOGMNR.START_LOGMNR(STARTSCN => ?, ENDSCN => ?, OPTIONS =>  SYS.DBMS_LOGMNR.SKIP_CORRUPTION + + SYS.DBMS_LOGMNR.CONTINUOUS_MINE + SYS.DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG);  end;", state.getStartScn(), state.getLastCommitScn());
-        //查询并行的事务id
-        List result = jdbcTemplate.queryForList("select distinct rawtohex(xid) as xid from v$logmnr_contents where scn >= ? and scn <= ?", state.getStartScn(), state.getLastCommitScn());
-        jdbcTemplate.update(Constants.MINING_END);
-
-        if (result.isEmpty()) {
-            log.info("检查没有发现需要补传的数据");
-            return state;
-        }
-
-        StringBuilder sqlwhere = new StringBuilder();
-        for (Object o : result) {
-            Map m = (Map) o;
-            sqlwhere.append("'").append(m.get("xid")).append("',");
-        }
-        if (sqlwhere.length() != 0)
-            sqlwhere.delete(sqlwhere.length() - 1, sqlwhere.length());
-
-        sqlwhere.insert(0, "select min(nvl(scn,0)) as minscn , count(xid) as xidcount from v$logmnr_contents where operation = 'COMMIT' and xid in (").append(")");
-        log.debug("查询并行事务最小scn {}", sqlwhere.toString());
-
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
-        Date seekEndTime = new Date();
-        try {
-            seekEndTime = sdf.parse(state.getLastTime());
-        } catch (ParseException e) {
-            throw new RuntimeException("计算时间错误", e);
-        }
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(seekEndTime);
-        while (true) {
-            //计算后延10分钟后的时间点
-            SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            calendar.add(Calendar.MINUTE, 10);
-            String endTime = sdf2.format(calendar.getTime());
-            log.info("\t查询从 {} 截止至 {}", state.getStartScn(), endTime);
-
-            //根据并行的事务id，查询所有事务的最小scn
-            jdbcTemplate.update("begin SYS.DBMS_LOGMNR.START_LOGMNR(STARTSCN => ?, ENDTIME => LEAST(TO_DATE(?,'YYYY-MM-DD HH24:MI:SS'),SYSDATE), OPTIONS => SYS.DBMS_LOGMNR.SKIP_CORRUPTION + SYS.DBMS_LOGMNR.CONTINUOUS_MINE + SYS.DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG);  end;", state.getStartScn(), endTime);
-            List result2 = jdbcTemplate.queryForList(sqlwhere.toString());
-            jdbcTemplate.update(Constants.MINING_END);
-            if (result.isEmpty()) {
-                log.warn("** 未找到事务信息，忽略同步未提交事务数据 **");
-                break;
-            }
-            Map info = (Map) result2.get(0);
-            BigDecimal xidCount = (BigDecimal) info.get("xidcount");
-            BigDecimal minScn = (BigDecimal) info.get("minscn");
-            if (minScn.longValue() != 0 && xidCount.intValue() != result.size()) {
-                log.info("\t已提交事务数为 {},最小scn为 {}, 需要继续查询最小scn", xidCount.intValue(), minScn.longValue());
-                continue;
-            }
-            log.info("查询到最小scn, startSCN从 {} 修改为 {}", state.getStartScn(), minScn.longValue());
-            state.setStartScn(minScn.longValue());
-            break;
-        }
-
-        return state;
+        return false;
     }
+
+    /**
+     * 检查数据库的日志列表是否完整,并警告
+     *
+     * @param state
+     */
+    private void pollingCheck(MiningState state) {
+        long minSequence = jdbcTemplate.queryForObject("select min(sequence#) from v$archived_log", Long.class);
+        if (minSequence > state.getLastSequence()) {
+            log.warn("\r\n");
+            log.warn("**********************************");
+            log.warn("请注意: 最后一次处理的日志编号为 {} , 数据库保存最久的日志编号为 {}, 存在数据丢失的情况", state.getLastSequence(), minSequence);
+            log.warn("**********************************");
+            log.warn("\r\n");
+        }
+    }
+
 
     /**
      * 读取上次运行时的结束同步信息.用于恢复同步.
@@ -152,13 +104,15 @@ public class MiningService {
         try {
             File stateFile = new File("state.saved");
             if (!stateFile.exists()) {
-                return new MiningState();
+                //初次启动,读取当前seq.
+                long seq = jdbcTemplate.queryForObject("select SEQUENCE# from v$log where status='CURRENT'", Long.class);
+                log.info("未找到进度状态文件,从最新日志开始抓取,日志编号为 {}", seq);
+                return new MiningState(0, seq, null);
             }
-
             String stateStr = FileUtils.readFileToString(stateFile, "utf-8");
             ObjectMapper om = new ObjectMapper();
             MiningState lastState = om.readValue(stateStr, MiningState.class);
-            log.info("从状态文件中读取上次执行的scn末位 {}", stateStr);
+            log.info("读取状态文件信息为 {}", stateStr);
             return lastState;
         } catch (IOException e) {
             log.error("读取进度状态错误", e);
@@ -167,43 +121,28 @@ public class MiningService {
     }
 
     /**
-     * 根据起始scn抓取待同步数据.
+     * 根据sequence 和 commitScn 抓取待同步数据.
      *
-     * @param startScn 起始同步的数据库变更点.
+     * @param state
      * @return
-     * @throws InterruptedException
      */
-    private long polling(long startScn) throws InterruptedException {
-        //查询数据库当前scn
-        long currentScn = loadDatabaseCurrentScn();
-
-        if (startScn == currentScn) {
-            String msg = String.format("已捕获至日志末尾,暂停 %d 秒. (起始SCN %d 等于 当前SCN %d)", env.getInterval(), startScn, currentScn);
-            log.info(msg);
-            TimeUnit.SECONDS.sleep(env.getInterval());
-        }
-        //计算分析一次归档的终点scn，性能调优参数，在一次分析的范围大小与数据库压力之间调整，
-        //endScn不应大于数据库最大scn值
-//        long endScn = Math.min(startScn + pollingSize, currentScn);
-        long endScn[] = new long[1];
-        endScn[0] = startScn;
+    private void pollingData(MiningState state) {
+        //获得seq对应的日志文件的位置,先从归档日志里判断
+        startLogFileMining(state);
         //启动日志分析
-        log.info("开始分析REDO日志 " + Constants.MINING_START_ENDLESS.replaceAll("\\?", "{}"), startScn);
-        jdbcTemplate.update(Constants.MINING_START_ENDLESS, startScn);
-        jdbcTemplate.setFetchSize(1);
+        jdbcTemplate.setFetchSize(500);
 
-        log.debug("提取REDO日志 {}", miningSql);
+        //log.debug("提取REDO日志 {}", miningSql);
         jdbcTemplate.query(miningSql, (rs) -> {
             //读取日志位置
             long scn = rs.getLong("SCN");
             long commitScn = rs.getLong("COMMIT_SCN");
-            int sequence = rs.getInt("SEQUENCE#");
             String timestamp = rs.getTimestamp("TIMESTAMP").toString();
             //计数
-            counterService.addCount(scn, sequence);
+            counterService.addCount();
 
-            if (state.getLastCommitScn() >= commitScn && state.getLastSequence() >= sequence) {
-                log.debug("忽略已同步数据 commitscn为 {}", commitScn);
+            if (state.getLastCommitScn() >= commitScn) {
+                log.debug("忽略已同步数据 当前commitscn为 {}, lastCommitScn为 {}", commitScn, state.getLastCommitScn());
                 return;
             }
             try {
@@ -230,28 +169,40 @@ public class MiningService {
                     log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
                 }
             } finally {
-                saveMiningState(scn, commitScn, sequence, timestamp);
-                endScn[0] = scn;
+                saveMiningState(commitScn, state.getLastSequence(), timestamp);
             }
-
         });
-
         //关闭日志分析
         log.debug("停止分析REDO日志 {}", Constants.MINING_END);
         jdbcTemplate.update(Constants.MINING_END);
-        return endScn[0];  //返回本次结束的scn，作为下一次轮询的startScn
+    }
+
+    private void startLogFileMining(MiningState state) {
+        String logFile;
+        boolean onlineLogFlag = false;
+        List<Map<String, Object>> result = jdbcTemplate.queryForList("select name from v$archived_log where sequence# = ?", state.getLastSequence());
+        if (result.isEmpty()) {
+            result = jdbcTemplate.queryForList("select f.member as name from v$log l inner join v$logfile f on l.group# = f.group# where sequence#= ?", state.getLastSequence());
+            onlineLogFlag = true;
+        }
+        Assert.state(!result.isEmpty(), String.format("未找到编号为 %d 的日志文件地址", state.getLastSequence()));
+
+        logFile = (String) result.get(0).get("name");
+
+        jdbcTemplate.update("begin dbms_logmnr.add_logfile(?);end;", logFile);
+//        jdbcTemplate.update("begin dbms_logmnr.add_logfile('" + logFile + "'); end;");
+        jdbcTemplate.update(Constants.MINING_START);
+        log.debug("分析 {} 日志, 日志编号为 {}, 日志文件为 {}", (onlineLogFlag ? "online log" : "archive log"), state.getLastSequence(), logFile);
     }
 
     /**
      * 保存同步位置.用于下次程序运行时,可以恢复到停止点.
      *
-     * @param scn
      * @param commitScn
      * @param sequence
      * @param timestamp
      */
-    private void saveMiningState(long scn, long commitScn, int sequence, String timestamp) {
-        state.setStartScn(scn);
+    private void saveMiningState(long commitScn, long sequence, String timestamp) {
         state.setLastCommitScn(commitScn);
         state.setLastSequence(sequence);
         state.setLastTime(timestamp);
@@ -265,61 +216,6 @@ public class MiningService {
         } catch (Exception e) {
             log.error("写入传输状态错误,当前传输信息为 " + stateStr, e);
         }
-    }
-
-//    /**
-//     * @return
-//     * @throws IOException
-//     * @Depre
-//     */
-//    private MiningState loadStartScn() throws IOException {
-//        //最优 读取上次停止的日志文件
-//        File stateFile = new File("state.saved");
-//        if (stateFile.exists()) {
-//            String stateStr = FileUtils.readFileToString(stateFile, "utf-8");
-//            ObjectMapper om = new ObjectMapper();
-//            MiningState lastState = om.readValue(stateStr, MiningState.class);
-//            log.info("从状态文件中读取上次执行的scn末位 {}", stateStr);
-//
-//            if (env.getInitStartTime() == null || "".equalsIgnoreCase(env.getInitStartTime())) {
-//                log.warn("发现上次分析截止commitScn为{} ，请输入归档日志检索的开始时间，以查找停止传输时是否存在未提交但需传输的数据。开始时间通过springboot启动参数 --mining.init-start-time=YYYYMMDDHH24MI 传入");
-//                System.exit(0);
-//            }
-//            //如果指定了开始时间，则查询开始时间对应的scn， 同时检索大于MiningState的commitScn的最小scn，优先用。
-//            jdbcTemplate.update(Constants.MINING_START_BY_TIME, env.getInitStartTime());
-//            long scn = jdbcTemplate.queryForObject(Constants.QUERY_MINING_START_SCN, Long.class, lastState.getLastCommitScn()).longValue();
-//            jdbcTemplate.update(Constants.MINING_END);
-//
-//            if (scn < lastState.getStartScn()) {
-//                log.info("上次截止点 {} 前存在未传输数据，从 {} 开始本次传输", lastState.getStartScn(), scn);
-//                lastState.setStartScn(scn);
-//            } else {
-//                log.info("上次截止点 {} 前有没有未传输数据，从上次截止点开始本次传输", lastState.getStartScn());
-//            }
-//            return lastState;
-//        }
-//
-//        MiningState lastState = new MiningState();
-//        //其次通过变更时间指定
-//        if (env.getInitStartTime() != null && !"".equalsIgnoreCase(env.getInitStartTime())) {
-//            jdbcTemplate.update(Constants.MINING_START_BY_TIME, env.getInitStartTime());
-//            long scn = jdbcTemplate.queryForObject(Constants.QUERY_MINING_START_SCN, Long.class, 0).longValue();
-//
-//            log.info("根据开始时间查询，开始传输scn为 {}", scn);
-//            lastState.setStartScn(scn);
-//            return lastState;
-//        }
-//        //根据当前时间
-//        long currentScn = loadDatabaseCurrentScn();
-//        log.info("以数据库当前时间，为开始传输的scn {}", currentScn);
-//        lastState.setStartScn(currentScn);
-//
-//        return lastState;
-//
-//    }
-
-    private long loadDatabaseCurrentScn() {
-        return jdbcTemplate.queryForObject(Constants.QUERY_CURRENT_SCN, Long.class);
     }
 
     private String buildMiningSqlWhere() {
