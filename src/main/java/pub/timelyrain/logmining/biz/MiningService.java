@@ -23,7 +23,7 @@ import java.util.Map;
 public class MiningService {
     Logger log = LogManager.getLogger(MiningService.class);
 
-    
+
     private final JdbcTemplate jdbcTemplate;
     private final SQLExtractor sqlExtractor;
     private final RabbitTemplate rabbitTemplate;
@@ -181,21 +181,31 @@ public class MiningService {
     }
 
     private void startLogFileMining(MiningState state) {
+        loadLogFile(state.getLastSequence());
+        try {
+            loadLogFile(state.getLastSequence() - 1);
+        } catch (Exception e) {
+            //为了避免日志切换造成数据丢失，同时加载两个连续的日志文件
+            //如果未找到前一个日志，不处理异常
+        }
+        jdbcTemplate.update(Constants.MINING_START);
+
+    }
+
+    private void loadLogFile(long sequence) {
         String logFile;
         boolean onlineLogFlag = false;
-        List<Map<String, Object>> result = jdbcTemplate.queryForList("select name from v$archived_log where sequence# = ?", state.getLastSequence());
+        List<Map<String, Object>> result = jdbcTemplate.queryForList("select name from v$archived_log where sequence# = ?", sequence);
         if (result.isEmpty()) {
-            result = jdbcTemplate.queryForList("select f.member as name from v$log l inner join v$logfile f on l.group# = f.group# where sequence#= ?", state.getLastSequence());
+            result = jdbcTemplate.queryForList("select f.member as name from v$log l inner join v$logfile f on l.group# = f.group# where sequence#= ?", sequence);
             onlineLogFlag = true;
         }
-        Assert.state(!result.isEmpty(), String.format("未找到编号为 %d 的日志文件地址", state.getLastSequence()));
+        Assert.state(!result.isEmpty(), String.format("未找到编号为 %d 的日志文件地址", sequence));
 
         logFile = (String) result.get(0).get("name");
 
         jdbcTemplate.update("begin dbms_logmnr.add_logfile(?);end;", logFile);
-//        jdbcTemplate.update("begin dbms_logmnr.add_logfile('" + logFile + "'); end;");
-        jdbcTemplate.update(Constants.MINING_START);
-        log.debug("分析 {} 日志, 日志编号为 {}, 日志文件为 {}", (onlineLogFlag ? "online log" : "archive log"), state.getLastSequence(), logFile);
+        log.debug("分析 {} 日志, 日志编号为 {}, 日志文件为 {}", (onlineLogFlag ? "online log" : "archive log"), sequence, logFile);
     }
 
     /**
