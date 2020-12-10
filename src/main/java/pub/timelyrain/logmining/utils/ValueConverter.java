@@ -15,24 +15,27 @@ public class ValueConverter {
         String[] charsHex = unicode.split(split);
         StringBuilder result = new StringBuilder();
 
-        for (String charHex : charsHex) {
-            if(charHex.length() == 0)
-                continue;
-            int hex = Integer.parseInt(charHex, 16);
-            char c = (char) hex;
-            result.append(c);
-        }
+        if (charsHex.length == 1)
+            return charsHex[0];
 
+        for (int i = 1; i < charsHex.length; i++) {
+            String charHex = charsHex[i];
+            int hex = Integer.parseInt(charHex.substring(0, 4), 16);
+            char c = (char) hex;
+            result.append(c).append(charHex.substring(4));
+        }
+        result.insert(0, charsHex[0]);
         return result.toString();
 
     }
 
     public static void main(String[] args) {
-        String a = "UNISTR('\\4F55\\4E16\\6C11')";
-        if(a.startsWith("UNISTR('") && a.endsWith("')"))
-            a = a.substring(8,a.length()-2);
+        String a = "UNISTR('aa\\4F55bb\\4E16cc\\6C11dd')";
+        if (a.startsWith("UNISTR('") && a.endsWith("')"))
+            a = a.substring(8, a.length() - 2);
         System.out.println(a);
-        System.out.println(unicodeToStr(a,"\\\\"));
+
+        System.out.println(unicodeToStr(a, "\\\\"));
 
 
     }

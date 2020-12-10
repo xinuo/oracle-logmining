@@ -22,4 +22,6 @@ public class StatusController {
     public List<Counter> status() {
         return counterService.traceList();
     }
+
+
 }

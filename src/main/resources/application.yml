@@ -8,7 +8,7 @@ spring:
     type: org.springframework.jdbc.datasource.SingleConnectionDataSource
 
   rabbitmq:
-    host: 192.168.10.233
+    host: 192.168.251.61
     port: 5672
     username: admin
     password: admin
@@ -30,12 +30,15 @@ mining:
     - CIICFS_TEST.F001
     - CIICFS_TEST.F203
     - CIICFS_TEST.F204
+    - CIICFS_TEST.E204
+    - CIICFS_TEST.E204_TAXHISTORY
     - CIICFS_TEST.F200
     - CIICFS_TEST.F201
     - CIICFS_WAGE_TEST.A001
     - CIICFS_WAGE_TEST.A002
     - CIICFS_WAGE_TEST.A200
     - CIICFS_WAGE_TEST.A282
+    - CIICFS_WAGE_TEST.A815
     - CIICFS_WAGE_TEST.A703
     - CIICFS_WAGE_TEST.B001
     - CIICFS_WAGE_TEST.B200
@@ -46,12 +49,11 @@ mining:
     - CIICFC_HRCLOUD_20200902.A019
     - CIICFC_HRCLOUD_20200902.A026
     - CIICFC_HRCLOUD_20200902.CUSTOM_INFO
-    - CIICFS_TEST.EMP_INFO
 
 
-#  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
+  #  sync-table: ciicfs_test.FS_WAGE_ITEM_CW,ciicfs.b001
   interval: 5
 
   exchangeName: oracle-sync.exchange
-  queueName: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz
+  queueName: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz,oracle-sync.ciic-bsp-wage
 

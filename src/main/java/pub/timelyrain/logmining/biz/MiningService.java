@@ -15,8 +15,9 @@ import pub.timelyrain.logmining.pojo.Row;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Component
 public class MiningService {
@@ -46,10 +47,10 @@ public class MiningService {
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
         pollingCheck(state);
-        // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
-        boolean completedLogFlag = checkCompletedLog(state);
         miningSql = buildMiningSql();
         while (!Thread.interrupted()) {
+            // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
+            boolean completedLogFlag = checkCompletedLog(state);
             // 从 seq 开始读取 archive log 或 redo log
             pollingData(state);
             // 抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
@@ -141,10 +142,10 @@ public class MiningService {
             //计数
             counterService.addCount();
 
-            if (state.getLastCommitScn() >= commitScn) {
-                log.debug("忽略已同步数据 当前commitscn为 {}, lastCommitScn为 {}", commitScn, state.getLastCommitScn());
-                return;
-            }
+//            if (state.getLastCommitScn() >= commitScn) {
+//                log.debug("忽略已同步数据 当前commitscn为 {}, lastCommitScn为 {}", commitScn, state.getLastCommitScn());
+//                return;
+//            }
             try {
                 //log.debug(scn);
                 //读取REDO
@@ -171,7 +172,7 @@ public class MiningService {
             } finally {
                 saveMiningState(commitScn, state.getLastSequence(), timestamp);
             }
-        });
+        }, state.getLastCommitScn());   //传入last commit scn，不重复读取日志。
         //关闭日志分析
         log.debug("停止分析REDO日志 {}", Constants.MINING_END);
         jdbcTemplate.update(Constants.MINING_END);
@@ -237,11 +238,11 @@ public class MiningService {
             String tableName = tb.split("\\.")[1]; // 数据库名.表名
             String tablesIn = tableGroup.get(schemaName);
             if (tableName.contains("*")) {
-                log.debug("{}设置为捕获全部表.", schemaName);
+                //log.debug("{}设置为捕获全部表.", schemaName);
                 tablesIn = "*";
             } else {
                 tablesIn = (tablesIn == null ? "'" + tableName + "'" : tablesIn + ",'" + tableName + "'");
-                log.debug("拼装同步表名的过滤sql {}->{}", schemaName, tablesIn);
+                //log.debug("拼装同步表名的过滤sql {}->{}", schemaName, tablesIn);
             }
             tableGroup.put(schemaName, tablesIn);
         }
