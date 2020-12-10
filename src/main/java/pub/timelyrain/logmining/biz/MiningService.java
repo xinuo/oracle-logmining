@@ -23,6 +23,7 @@ import java.util.Map;
 public class MiningService {
     Logger log = LogManager.getLogger(MiningService.class);
 
+    
     private final JdbcTemplate jdbcTemplate;
     private final SQLExtractor sqlExtractor;
     private final RabbitTemplate rabbitTemplate;
@@ -56,6 +57,7 @@ public class MiningService {
             // 抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
             if (completedLogFlag)
                 state.nextLog();
+
         }
 
     }

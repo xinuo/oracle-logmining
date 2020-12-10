@@ -1,3 +1,5 @@
+server:
+  port: 8484
 
 spring:
   datasource:
@@ -56,4 +58,4 @@ mining:
 
   exchangeName: oracle-sync.exchange
   queueName: oracle-sync.ciic-bsp-cus,oracle-sync.ciic-bsp-biz,oracle-sync.ciic-bsp-wage
-
+K
