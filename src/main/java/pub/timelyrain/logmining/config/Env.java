@@ -12,7 +12,7 @@ public class Env {
 
     private String exchangeName;
     private String queueName;
-    private Integer interval;
+    private Integer logFileScaned;
 
     private boolean multiTenant;
 
@@ -42,12 +42,12 @@ public class Env {
         this.queueName = queueName;
     }
 
-    public Integer getInterval() {
-        return interval;
+    public Integer getLogFileScaned() {
+        return logFileScaned;
     }
 
-    public void setInterval(Integer interval) {
-        this.interval = interval;
+    public void setLogFileScaned(Integer logFileScaned) {
+        this.logFileScaned = logFileScaned;
     }
 
     public boolean isMultiTenant() {
@@ -64,7 +64,7 @@ public class Env {
         return "Env{" +
                 "exchangeName='" + exchangeName + '\'' +
                 ", queueName='" + queueName + '\'' +
-                ", interval=" + interval +
+                ", logFileScaned=" + logFileScaned +
                 ", multiTenant=" + multiTenant +
                 ", tables=" + Arrays.toString(tables) +
                 '}';

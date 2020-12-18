@@ -182,11 +182,13 @@ public class MiningService {
 
     private void startLogFileMining(MiningState state) {
         loadLogFile(state.getLastSequence());
-        try {
-            loadLogFile(state.getLastSequence() - 1);
-        } catch (Exception e) {
-            //为了避免日志切换造成数据丢失，同时加载两个连续的日志文件
-            //如果未找到前一个日志，不处理异常
+        for (int i = 1; i < env.getLogFileScaned(); i++) {
+            try {
+                loadLogFile(state.getLastSequence() - i);
+            } catch (Exception e) {
+                //为了避免日志切换造成数据丢失，同时加载两个连续的日志文件
+                //如果未找到前一个日志，不处理异常
+            }
         }
         jdbcTemplate.update(Constants.MINING_START);
 
