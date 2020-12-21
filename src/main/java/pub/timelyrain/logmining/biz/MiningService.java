@@ -6,10 +6,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import pub.timelyrain.logmining.config.Env;
+import pub.timelyrain.logmining.pojo.RedoLog;
 import pub.timelyrain.logmining.pojo.MiningState;
 import pub.timelyrain.logmining.pojo.Row;
 
@@ -29,18 +31,20 @@ public class MiningService {
     private final RabbitTemplate rabbitTemplate;
     private final CounterService counterService;
     private final Env env;
+    private final RedisTemplate redisTemplate;
 
     @Autowired
-    public MiningService(JdbcTemplate jdbcTemplate, SQLExtractor sqlExtractor, RabbitTemplate rabbitTemplate, CounterService counterService, Env env) {
+    public MiningService(JdbcTemplate jdbcTemplate, SQLExtractor sqlExtractor, RabbitTemplate rabbitTemplate, CounterService counterService, Env env, RedisTemplate redisTemplate) {
         this.jdbcTemplate = jdbcTemplate;
         this.sqlExtractor = sqlExtractor;
         this.rabbitTemplate = rabbitTemplate;
         this.counterService = counterService;
         this.env = env;
+        this.redisTemplate = redisTemplate;
 
     }
 
-    private String miningSql;
+    //    private String miningSql;
     private MiningState state;
 
     public void startMining() {
@@ -48,7 +52,7 @@ public class MiningService {
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
         pollingCheck(state);
-        miningSql = buildMiningSql();
+//        miningSql = buildMiningSql();
         while (!Thread.interrupted()) {
             // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
             boolean completedLogFlag = checkCompletedLog(state);
@@ -110,7 +114,7 @@ public class MiningService {
                 //初次启动,读取当前seq.
                 long seq = jdbcTemplate.queryForObject("select SEQUENCE# from v$log where status='CURRENT'", Long.class);
                 log.info("未找到进度状态文件,从最新日志开始抓取,日志编号为 {}", seq);
-                return new MiningState(0, seq, null);
+                return new MiningState(0, 0, seq, null);
             }
             String stateStr = FileUtils.readFileToString(stateFile, "utf-8");
             ObjectMapper om = new ObjectMapper();
@@ -134,20 +138,17 @@ public class MiningService {
         startLogFileMining(state);
         //启动日志分析
         jdbcTemplate.setFetchSize(500);
+        jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
+            //读取事务id
+            String xid = rs.getString("XID");
+            int opCode = rs.getInt("OPERATION_CODE");
+            int redoValue = rs.getInt("REDO_VALUE");
 
-        //log.debug("提取REDO日志 {}", miningSql);
-        jdbcTemplate.query(miningSql, (rs) -> {
             //读取日志位置
             long scn = rs.getLong("SCN");
             long commitScn = rs.getLong("COMMIT_SCN");
             String timestamp = rs.getTimestamp("TIMESTAMP").toString();
-            //计数
-            counterService.addCount();
 
-//            if (state.getLastCommitScn() >= commitScn) {
-//                log.debug("忽略已同步数据 当前commitscn为 {}, lastCommitScn为 {}", commitScn, state.getLastCommitScn());
-//                return;
-//            }
             try {
                 //log.debug(scn);
                 //读取REDO
@@ -165,14 +166,11 @@ public class MiningService {
                         }
                     }
                 }
-                if (csf == 0) {
-                    log.debug(redo);
-                    convertAndDelivery(schema, tableName, redo, rowId, scn, commitScn, timestamp);
-                } else {
-                    log.warn("REDO log 处于截断状态 SCN:{} ,REDO SQL {}", scn, redo);
-                }
+
+                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, redoValue, xid, opCode);
+                traceChange(redoLog);
             } finally {
-                saveMiningState(commitScn, state.getLastSequence(), timestamp);
+                saveMiningState(commitScn, redoValue, state.getLastSequence(), timestamp);
             }
         }, state.getLastCommitScn());   //传入last commit scn，不重复读取日志。
         //关闭日志分析
@@ -182,16 +180,53 @@ public class MiningService {
 
     private void startLogFileMining(MiningState state) {
         loadLogFile(state.getLastSequence());
-        for (int i = 1; i < env.getLogFileScaned(); i++) {
-            try {
-                loadLogFile(state.getLastSequence() - i);
-            } catch (Exception e) {
-                //为了避免日志切换造成数据丢失，同时加载两个连续的日志文件
-                //如果未找到前一个日志，不处理异常
-            }
-        }
+//        for (int i = 1; i < env.getLogFileScaned(); i++) {
+//            try {
+//                loadLogFile(state.getLastSequence() - i);
+//            } catch (Exception e) {
+//                //为了避免日志切换造成数据丢失，同时加载两个连续的日志文件
+//                //如果未找到前一个日志，不处理异常
+//            }
+//        }
         jdbcTemplate.update(Constants.MINING_START);
 
+    }
+
+    private void traceChange(RedoLog redoLog) {
+        String txKey = "mining:xid:" + redoLog.getXid();
+        //判断是否是提交opCode=6 或回滚opCode=36
+        if (6 == redoLog.getOpCode()) {
+            commitChange(redoLog);
+            return;
+        } else if (36 == redoLog.getOpCode()) {
+            rollbackChange(redoLog);
+            return;
+        } else if (1 == redoLog.getOpCode() || 2 == redoLog.getOpCode() || 3 == redoLog.getOpCode()) {
+            //新增、修改、删除
+            redisTemplate.opsForList().rightPush(txKey, redoLog);
+            //计数
+            counterService.addCount();
+
+        } else if (5 == redoLog.getOpCode()) {
+            // todo 更新日志字典
+
+        }
+    }
+
+    private void commitChange(RedoLog redoLog) {
+        String txKey = "mining:xid:" + redoLog.getXid();
+        //从redis中取得redolog的列表，并调用convertAndDelivery
+        while (redisTemplate.opsForList().size(txKey) != 0) {
+            RedoLog redo = (RedoLog) redisTemplate.opsForList().leftPop(txKey);
+            convertAndDelivery(redo);
+        }
+        redisTemplate.delete(txKey);
+    }
+
+    private void rollbackChange(RedoLog redoLog) {
+        //根据事务id删除redis缓存的redelog
+        redisTemplate.delete("mining:xid:" + redoLog.getXid());
+        log.debug("识别回滚事务 事务id为 {}", redoLog.getXid());
     }
 
     private void loadLogFile(long sequence) {
@@ -217,8 +252,9 @@ public class MiningService {
      * @param sequence
      * @param timestamp
      */
-    private void saveMiningState(long commitScn, long sequence, String timestamp) {
+    private void saveMiningState(long commitScn, int redoValue, long sequence, String timestamp) {
         state.setLastCommitScn(commitScn);
+        state.setLastRedoValue(redoValue);
         state.setLastSequence(sequence);
         state.setLastTime(timestamp);
 
@@ -286,17 +322,17 @@ public class MiningService {
         return sql.toString();
     }
 
-    private void convertAndDelivery(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp) {
+    private void convertAndDelivery(RedoLog redoLog) {
         try {
-            Row row = sqlExtractor.parse(schema, tableName, redo);
+            Row row = sqlExtractor.parse(redoLog.getSchema(), redoLog.getTableName(), redoLog.getRedo());
             if (row == null)
                 return;
 
-            row.setRowId(rowId);
-            row.setScn(scn);
-            row.setCommitScn(commitScn);
-            row.setTimestamp(timestamp);
-            rabbitTemplate.convertAndSend(env.getExchangeName(), schema + "." + tableName, row);
+            row.setRowId(redoLog.getRowId());
+            row.setScn(redoLog.getScn());
+            row.setCommitScn(redoLog.getCommitScn());
+            row.setTimestamp(redoLog.getTimestamp());
+            rabbitTemplate.convertAndSend(env.getExchangeName(), redoLog.getSchema() + "." + redoLog.getTableName(), row);
 
             log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
         } catch (Exception e) {

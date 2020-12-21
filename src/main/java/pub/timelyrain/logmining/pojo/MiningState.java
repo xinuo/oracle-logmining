@@ -3,16 +3,26 @@ package pub.timelyrain.logmining.pojo;
 public class MiningState {
 
     private long lastCommitScn = 0;
+    private long lastRedoValue = 0;
     private long lastSequence;
     private String lastTime;
 
     public MiningState() {
     }
 
-    public MiningState(long lastCommitScn, long lastSequence, String lastTime) {
+    public MiningState(long lastCommitScn, long lastRedoValue, long lastSequence, String lastTime) {
         this.lastCommitScn = lastCommitScn;
+        this.lastRedoValue = lastRedoValue;
         this.lastSequence = lastSequence;
         this.lastTime = lastTime;
+    }
+
+    public long getLastRedoValue() {
+        return lastRedoValue;
+    }
+
+    public void setLastRedoValue(long lastRedoValue) {
+        this.lastRedoValue = lastRedoValue;
     }
 
     public long getLastCommitScn() {
@@ -41,5 +51,6 @@ public class MiningState {
 
     public void nextLog() {
         lastSequence++;
+        lastRedoValue = 0;
     }
 }

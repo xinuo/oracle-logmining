@@ -18,6 +18,11 @@ spring:
   application:
     name: oracle-mining
 
+  redis:
+    host: 127.0.0.1
+    port: 6379
+
+
 mining:
   #多租户模式 设置true 普通模式设置 false
   multiTenant: true

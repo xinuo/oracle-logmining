@@ -10,7 +10,7 @@ shutdown immediate;
 startup mount;
 alter database archivelog;
 alter database open;
-alter database add supplemental log data (all) columns;
+alter database add supplemental redoLog data (all) columns;
 ```
 
  ### 2.添加数据库用户
