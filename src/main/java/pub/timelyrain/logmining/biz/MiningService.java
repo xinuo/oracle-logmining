@@ -142,7 +142,8 @@ public class MiningService {
         startLogFileMining(state);
         //启动日志分析
         jdbcTemplate.setFetchSize(500);
-        jdbcTemplate.query(miningSql, (rs) -> {
+//        jdbcTemplate.query(miningSql, (rs) -> {
+        jdbcTemplate.query(Constants.QUERY_REDO2, (rs) -> {
             //读取事务id
             String xid = rs.getString("XID");
             int opCode = rs.getInt("OPERATION_CODE");

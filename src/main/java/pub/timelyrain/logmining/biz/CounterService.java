@@ -11,11 +11,13 @@ import pub.timelyrain.logmining.pojo.Counter;
 
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class CounterService {
     private static final Logger log = LogManager.getLogger(MiningService.class);
     private static final List<Counter> traceList = new Vector();
+    private static final AtomicLong totalCount = new AtomicLong(0);
 
 
     public void addCount() {
@@ -24,6 +26,7 @@ public class CounterService {
             traceList.add(counter);
         }
         traceList.get(traceList.size() - 1).addCount();
+        System.out.println(totalCount.addAndGet(1));
     }
 
 
@@ -44,7 +47,8 @@ public class CounterService {
             return null;
         }
     }
-    public List<Counter> traceList(){
+
+    public List<Counter> traceList() {
         return traceList;
     }
 }

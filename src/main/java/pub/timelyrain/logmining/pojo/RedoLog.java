@@ -34,12 +34,11 @@ public class RedoLog {
         return "RedoLog{" +
                 "schema='" + schema + '\'' +
                 ", tableName='" + tableName + '\'' +
-                ", redo='" + redo + '\'' +
                 ", rowId='" + rowId + '\'' +
                 ", scn=" + scn +
                 ", commitScn=" + commitScn +
                 ", timestamp='" + timestamp + '\'' +
-                ", redoValue=" + rowNum +
+                ", rownum=" + rowNum +
                 ", xid='" + xid + '\'' +
                 ", opCode=" + opCode +
                 '}';
