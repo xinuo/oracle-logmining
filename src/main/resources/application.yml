@@ -4,13 +4,13 @@ server:
 spring:
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:@192.168.1.33:1521/orcl
-    username: kminer
+    url: jdbc:oracle:thin:@192.168.10.123:1521/orcl
+    username: c##kminer
     password: kminerpass
     type: org.springframework.jdbc.datasource.SingleConnectionDataSource
 
   rabbitmq:
-    host: 192.168.1.30
+    host: 192.168.251.61
     port: 5672
     username: admin
     password: admin
@@ -31,7 +31,7 @@ mining:
 
   #同步表名， 竖线后面为推送条件,可以为空,条件为true时不推送.  条件为js语法  字段名变量为大写
   tables:
-    - CIICFS_TEST.EMP_INFO
+    - CIICFS_TEST.E001
     - CIICFS_TEST.E200
     - CIICFS_TEST.E201
     - CIICFS_TEST.F001

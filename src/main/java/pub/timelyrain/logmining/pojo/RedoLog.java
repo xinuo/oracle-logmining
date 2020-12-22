@@ -9,11 +9,14 @@ public class RedoLog {
     private long scn;
     private long commitScn;
     private String timestamp;
-    private long redoValue;
+    private long rowNum;
     private String xid;
     private int opCode;
 
-    public RedoLog(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp, long redoValue, String xid, int opCode) {
+    public RedoLog() {
+    }
+
+    public RedoLog(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp, long rowNum, String xid, int opCode) {
         this.schema = schema;
         this.tableName = tableName;
         this.redo = redo;
@@ -21,9 +24,25 @@ public class RedoLog {
         this.scn = scn;
         this.commitScn = commitScn;
         this.timestamp = timestamp;
-        this.redoValue = redoValue;
+        this.rowNum = rowNum;
         this.xid = xid;
         this.opCode = opCode;
+    }
+
+    @Override
+    public String toString() {
+        return "RedoLog{" +
+                "schema='" + schema + '\'' +
+                ", tableName='" + tableName + '\'' +
+                ", redo='" + redo + '\'' +
+                ", rowId='" + rowId + '\'' +
+                ", scn=" + scn +
+                ", commitScn=" + commitScn +
+                ", timestamp='" + timestamp + '\'' +
+                ", redoValue=" + rowNum +
+                ", xid='" + xid + '\'' +
+                ", opCode=" + opCode +
+                '}';
     }
 
     public int getOpCode() {
@@ -98,11 +117,11 @@ public class RedoLog {
         this.timestamp = timestamp;
     }
 
-    public long getRedoValue() {
-        return redoValue;
+    public long getRowNum() {
+        return rowNum;
     }
 
-    public void setRedoValue(long redoValue) {
-        this.redoValue = redoValue;
+    public void setRowNum(long rowNum) {
+        this.rowNum = rowNum;
     }
 }

@@ -11,13 +11,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import pub.timelyrain.logmining.config.Env;
-import pub.timelyrain.logmining.pojo.RedoLog;
 import pub.timelyrain.logmining.pojo.MiningState;
+import pub.timelyrain.logmining.pojo.RedoLog;
 import pub.timelyrain.logmining.pojo.Row;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -44,15 +45,18 @@ public class MiningService {
 
     }
 
-    //    private String miningSql;
+    private String miningSql;
     private MiningState state;
+    private HashSet<String> traceTable = new HashSet<>();
 
     public void startMining() {
         // 读取state的seq
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
         pollingCheck(state);
-//        miningSql = buildMiningSql();
+        miningSql = buildMiningSql();
+
+
         while (!Thread.interrupted()) {
             // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
             boolean completedLogFlag = checkCompletedLog(state);
@@ -138,17 +142,15 @@ public class MiningService {
         startLogFileMining(state);
         //启动日志分析
         jdbcTemplate.setFetchSize(500);
-        jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
+        jdbcTemplate.query(miningSql, (rs) -> {
             //读取事务id
             String xid = rs.getString("XID");
             int opCode = rs.getInt("OPERATION_CODE");
-            int redoValue = rs.getInt("REDO_VALUE");
-
+            long rn = rs.getLong("RN");
             //读取日志位置
             long scn = rs.getLong("SCN");
             long commitScn = rs.getLong("COMMIT_SCN");
             String timestamp = rs.getTimestamp("TIMESTAMP").toString();
-
             try {
                 //log.debug(scn);
                 //读取REDO
@@ -167,12 +169,12 @@ public class MiningService {
                     }
                 }
 
-                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, redoValue, xid, opCode);
+                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode);
                 traceChange(redoLog);
             } finally {
-                saveMiningState(commitScn, redoValue, state.getLastSequence(), timestamp);
+                saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
             }
-        }, state.getLastCommitScn());   //传入last commit scn，不重复读取日志。
+        }, state.getLastRowNum());   //传入redo value，不重复读取日志。
         //关闭日志分析
         log.debug("停止分析REDO日志 {}", Constants.MINING_END);
         jdbcTemplate.update(Constants.MINING_END);
@@ -193,27 +195,34 @@ public class MiningService {
     }
 
     private void traceChange(RedoLog redoLog) {
-        String txKey = "mining:xid:" + redoLog.getXid();
         //判断是否是提交opCode=6 或回滚opCode=36
-        if (6 == redoLog.getOpCode()) {
-            commitChange(redoLog);
+        if (7 == redoLog.getOpCode()) {
+            commitRedo(redoLog);
             return;
         } else if (36 == redoLog.getOpCode()) {
-            rollbackChange(redoLog);
+            rollbackRedo(redoLog);
             return;
         } else if (1 == redoLog.getOpCode() || 2 == redoLog.getOpCode() || 3 == redoLog.getOpCode()) {
-            //新增、修改、删除
-            redisTemplate.opsForList().rightPush(txKey, redoLog);
-            //计数
-            counterService.addCount();
-
+            saveRedo(redoLog);
+            return;
         } else if (5 == redoLog.getOpCode()) {
             // todo 更新日志字典
 
         }
     }
 
-    private void commitChange(RedoLog redoLog) {
+    private void saveRedo(RedoLog redoLog) {
+        if (!traceTable.contains(redoLog.getSchema() + "." + redoLog.getTableName()))
+            return;
+        String txKey = "mining:xid:" + redoLog.getXid();
+        //新增、修改、删除
+        redisTemplate.opsForList().rightPush(txKey, redoLog);
+        log.debug("save redo to redis {}", redoLog.toString());
+        //计数
+        counterService.addCount();
+    }
+
+    private void commitRedo(RedoLog redoLog) {
         String txKey = "mining:xid:" + redoLog.getXid();
         //从redis中取得redolog的列表，并调用convertAndDelivery
         while (redisTemplate.opsForList().size(txKey) != 0) {
@@ -223,7 +232,7 @@ public class MiningService {
         redisTemplate.delete(txKey);
     }
 
-    private void rollbackChange(RedoLog redoLog) {
+    private void rollbackRedo(RedoLog redoLog) {
         //根据事务id删除redis缓存的redelog
         redisTemplate.delete("mining:xid:" + redoLog.getXid());
         log.debug("识别回滚事务 事务id为 {}", redoLog.getXid());
@@ -252,9 +261,9 @@ public class MiningService {
      * @param sequence
      * @param timestamp
      */
-    private void saveMiningState(long commitScn, int redoValue, long sequence, String timestamp) {
+    private void saveMiningState(long commitScn, long redoValue, long sequence, String timestamp) {
         state.setLastCommitScn(commitScn);
-        state.setLastRedoValue(redoValue);
+        state.setLastRowNum(redoValue);
         state.setLastSequence(sequence);
         state.setLastTime(timestamp);
 
@@ -263,7 +272,7 @@ public class MiningService {
             File state = new File("state.saved");
             stateStr = new ObjectMapper().writeValueAsString(this.state);
             FileUtils.writeStringToFile(state, stateStr, "UTF-8", false);
-            log.debug("saved state {}", stateStr);
+//            log.debug("saved state {}", stateStr);
         } catch (Exception e) {
             log.error("写入传输状态错误,当前传输信息为 " + stateStr, e);
         }
@@ -284,16 +293,12 @@ public class MiningService {
             }
 
             Assert.isTrue(tb.contains("."), "同步表名格式不符合 数据库名.表名 的格式(" + tb + ")");
+            Assert.isTrue(!tb.contains("\\*"), "同步表名格式不符合 不可以使用通配 *(" + tb + ")");
+            traceTable.add(tb);
             String schemaName = tb.split("\\.")[0]; // 数据库名.表名
             String tableName = tb.split("\\.")[1]; // 数据库名.表名
             String tablesIn = tableGroup.get(schemaName);
-            if (tableName.contains("*")) {
-                //log.debug("{}设置为捕获全部表.", schemaName);
-                tablesIn = "*";
-            } else {
-                tablesIn = (tablesIn == null ? "'" + tableName + "'" : tablesIn + ",'" + tableName + "'");
-                //log.debug("拼装同步表名的过滤sql {}->{}", schemaName, tablesIn);
-            }
+            tablesIn = (tablesIn == null ? "'" + tableName + "'" : tablesIn + ",'" + tableName + "'");
             tableGroup.put(schemaName, tablesIn);
         }
 
@@ -314,10 +319,11 @@ public class MiningService {
     }
 
     private String buildMiningSql() {
-        StringBuilder sql = new StringBuilder();
-        sql.insert(0, buildMiningSqlWhere());
-        sql.insert(0, " AND ");
-        sql.insert(0, Constants.QUERY_REDO);
+//        StringBuilder sql = new StringBuilder();
+//        sql.insert(0, buildMiningSqlWhere());
+//        sql.insert(0, " AND ");
+//        sql.insert(0, Constants.QUERY_REDO);
+        String sql = String.format(Constants.QUERY_REDO, buildMiningSqlWhere());
         log.debug("日志查询的sql是 {}", sql.toString());
         return sql.toString();
     }
