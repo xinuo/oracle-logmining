@@ -26,7 +26,7 @@ public class CounterService {
             traceList.add(counter);
         }
         traceList.get(traceList.size() - 1).addCount();
-        System.out.println(totalCount.addAndGet(1));
+        totalCount.addAndGet(1);
     }
 
 

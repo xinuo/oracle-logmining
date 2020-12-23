@@ -143,10 +143,13 @@ public class MiningService {
         //启动日志分析
         jdbcTemplate.setFetchSize(500);
 //        jdbcTemplate.query(miningSql, (rs) -> {
-        jdbcTemplate.query(Constants.QUERY_REDO2, (rs) -> {
+        jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
             //读取事务id
             String xid = rs.getString("XID");
             int opCode = rs.getInt("OPERATION_CODE");
+            int rollback = rs.getInt("ROLLBACK");
+            if (1 == rollback)
+                return;
             long rn = rs.getLong("RN");
             //读取日志位置
             long scn = rs.getLong("SCN");
@@ -218,7 +221,7 @@ public class MiningService {
         String txKey = "mining:xid:" + redoLog.getXid();
         //新增、修改、删除
         redisTemplate.opsForList().rightPush(txKey, redoLog);
-        log.debug("save redo to redis {}", redoLog.toString());
+        log.debug("识别待提交数据，缓存成功 {}", redoLog.toString());
         //计数
         counterService.addCount();
     }
