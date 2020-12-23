@@ -160,6 +160,7 @@ public class MiningService {
                 //读取REDO
                 int csf = rs.getInt("CSF");
                 String schema = rs.getString("SEG_OWNER");
+                String rsId = rs.getString("RS_ID");
                 String tableName = rs.getString("TABLE_NAME");
                 String redo = rs.getString("SQL_REDO");
                 String rowId = rs.getString("ROW_ID");
@@ -173,7 +174,7 @@ public class MiningService {
                     }
                 }
 
-                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode);
+                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode, rsId);
                 traceChange(redoLog);
             } finally {
                 saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);

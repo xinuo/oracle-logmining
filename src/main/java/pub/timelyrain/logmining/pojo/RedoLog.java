@@ -12,11 +12,12 @@ public class RedoLog {
     private long rowNum;
     private String xid;
     private int opCode;
+    private String rsId;
 
     public RedoLog() {
     }
 
-    public RedoLog(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp, long rowNum, String xid, int opCode) {
+    public RedoLog(String schema, String tableName, String redo, String rowId, long scn, long commitScn, String timestamp, long rowNum, String xid, int opCode, String rsId) {
         this.schema = schema;
         this.tableName = tableName;
         this.redo = redo;
@@ -27,6 +28,7 @@ public class RedoLog {
         this.rowNum = rowNum;
         this.xid = xid;
         this.opCode = opCode;
+        this.rsId = rsId;
     }
 
     @Override
@@ -42,6 +44,14 @@ public class RedoLog {
                 ", xid='" + xid + '\'' +
                 ", opCode=" + opCode +
                 '}';
+    }
+
+    public String getRsId() {
+        return rsId;
+    }
+
+    public void setRsId(String rsId) {
+        this.rsId = rsId;
     }
 
     public int getOpCode() {
