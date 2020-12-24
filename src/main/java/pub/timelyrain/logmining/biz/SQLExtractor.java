@@ -15,9 +15,9 @@ import net.sf.jsqlparser.statement.update.Update;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import pub.timelyrain.logmining.config.Env;
 import pub.timelyrain.logmining.pojo.Row;
 import pub.timelyrain.logmining.utils.ValueConverter;
 
@@ -27,8 +27,6 @@ import java.util.*;
 @Component
 public class SQLExtractor {
 
-    @Value("${mining.multi-tenant}")
-    private boolean multiTenant;
     private static Logger log = LogManager.getLogger(SQLExtractor.class);
 
     public static final String MODE_DML = "DML";
@@ -39,20 +37,19 @@ public class SQLExtractor {
 
     private static HashMap<String, List> TABLE_DICT = new HashMap<>();
     private static HashMap<String, List> TABLE_PK = new HashMap<>();
-    private static HashMap<String, String> PULL_CONDITION = new HashMap<>();
+
 
     private static ScriptEngine ENGINE = new ScriptEngineManager().getEngineByName("ECMAScript");
 
     private JdbcTemplate jdbcTemplate;
+    private Env env;
 
     @Autowired
-    public SQLExtractor(JdbcTemplate jdbcTemplate) {
+    public SQLExtractor(JdbcTemplate jdbcTemplate, Env env) {
         this.jdbcTemplate = jdbcTemplate;
+        this.env = env;
     }
 
-    public static void addRowCondition(String table, String condition) {
-        PULL_CONDITION.put(table.toUpperCase(), condition);
-    }
 
     public Row parse(String schema, String table, String sql) throws JSQLParserException {
         Statement st = CCJSqlParserUtil.parse(sql);
@@ -60,13 +57,13 @@ public class SQLExtractor {
 
         if (st instanceof Insert) {
             row = convInsert((Insert) st);
-            if(!checkCondition(schema + "." + table,row.getNewData())) return null;
+            if (!checkCondition(schema, table, row.getNewData())) return null;
         } else if (st instanceof Update) {
             row = convUpdate((Update) st);
-            if(!checkCondition(schema + "." + table,row.getNewData())) return null;
+            if (!checkCondition(schema, table, row.getNewData())) return null;
         } else if (st instanceof Delete) {
             row = convDelete((Delete) st);
-            if(!checkCondition(schema + "." + table,row.getOldData())) return null;
+            if (!checkCondition(schema, table, row.getOldData())) return null;
         } else {
             row = new Row();
             row.setMode(MODE_DDL);
@@ -88,12 +85,13 @@ public class SQLExtractor {
         return row;
     }
 
-    private boolean checkCondition(String tableName, Map<String, String> data) {
-        if (!PULL_CONDITION.containsKey(tableName))
+
+    private boolean checkCondition(String schema, String tableName, Map<String, String> data) {
+        String condition = env.getCondition(schema, tableName);
+        if (condition == null)
             return true;
 
-        String condition = PULL_CONDITION.get(tableName);
-        HashMap<String,Object> dataObj = new HashMap();
+        HashMap<String, Object> dataObj = new HashMap();
         dataObj.putAll(data);
         ENGINE.setBindings(new SimpleBindings(dataObj), ScriptContext.ENGINE_SCOPE);
         try {
@@ -109,7 +107,7 @@ public class SQLExtractor {
 
     private void loadTableDict(String schema, String table) {
         List result = null;
-        if (!multiTenant) {
+        if (!env.isMultiTenant()) {
             result = jdbcTemplate.queryForList(Constants.QUERY_TALBE_DICT, schema, table);
         } else {
             String sql = Constants.QUERY_TALBE_DICT_CDB.replaceAll("\\$OWNER\\$", schema);
@@ -242,9 +240,9 @@ public class SQLExtractor {
             return null;
 
         //判断入参是否是UNISTR('\4F55\4E16\6C11') 格式
-        if(value.startsWith("UNISTR('") && value.endsWith("')")) {
+        if (value.startsWith("UNISTR('") && value.endsWith("')")) {
             value = value.substring(8, value.length() - 2);
-            return ValueConverter.unicodeToStr(value,"\\\\");
+            return ValueConverter.unicodeToStr(value, "\\\\");
         }
         //判断入参是否是blob
 

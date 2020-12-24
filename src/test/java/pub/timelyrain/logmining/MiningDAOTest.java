@@ -15,7 +15,7 @@ class MiningDAOTest {
     private RabbitTemplate rabbitTemplate;
 
     @Test
-    void startMining() {
+    void startMining() throws InterruptedException {
         miningDAO.startMining();
     }
     @Test

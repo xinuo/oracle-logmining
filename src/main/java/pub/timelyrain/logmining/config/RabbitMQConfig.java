@@ -2,7 +2,6 @@ package pub.timelyrain.logmining.config;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.HashMap;
+import java.util.List;
 
 @Configuration
 public class RabbitMQConfig {
@@ -40,22 +39,16 @@ public class RabbitMQConfig {
 
     private void createExchangeAndQueue(ConnectionFactory factory) {
         RabbitAdmin admin = new RabbitAdmin(factory);
-        FanoutExchange fanoutExchange = new FanoutExchange(env.getExchangeName());
-        admin.declareExchange(fanoutExchange);
-        String[] queues = env.getQueueName().split(",");
-        for (String q : queues) {
-            Queue queue = new Queue(q);
-            admin.declareQueue(queue);
-            admin.declareBinding(new Binding(q, Binding.DestinationType.QUEUE, env.getExchangeName(), "", null));
+        for (String exchangeName : env.getExchanges().keySet()) {
+            FanoutExchange fanoutExchange = new FanoutExchange(exchangeName);
+            admin.declareExchange(fanoutExchange);
+            List<String> queues = env.getExchanges().get(exchangeName);
+            for (String q : queues) {
+                Queue queue = new Queue(q);
+                admin.declareQueue(queue);
+                admin.declareBinding(new Binding(q, Binding.DestinationType.QUEUE, exchangeName, "", null));
+            }
         }
     }
 
-    public static void main(String[] args) throws JsonProcessingException {
-        ObjectMapper om = new ObjectMapper();
-        om.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        HashMap m = new HashMap();
-        m.put("aa", null);
-        m.put("bb", "bb");
-        System.out.println(om.writeValueAsString(m));
-    }
 }

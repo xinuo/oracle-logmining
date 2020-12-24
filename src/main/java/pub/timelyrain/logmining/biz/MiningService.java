@@ -18,7 +18,6 @@ import pub.timelyrain.logmining.pojo.Row;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +47,6 @@ public class MiningService {
 
     private String miningSql;
     private MiningState state;
-    private HashSet<String> traceTable = new HashSet<>();
 
     public void startMining() throws InterruptedException {
         // 读取state的seq
@@ -64,7 +62,7 @@ public class MiningService {
             // 从 seq 开始读取 archive log 或 redo log
             try {
                 pollingData(state);
-            }catch (Exception e){
+            } catch (Exception e) {
                 log.error(e);
                 TimeUnit.SECONDS.sleep(1);
             }
@@ -223,7 +221,7 @@ public class MiningService {
     }
 
     private void saveRedo(RedoLog redoLog) {
-        if (!traceTable.contains(redoLog.getSchema() + "." + redoLog.getTableName()))
+        if (!env.getScanTables().contains(redoLog.getSchema() + "." + redoLog.getTableName()))
             return;
         String txKey = "mining:xid:" + redoLog.getXid();
         //新增、修改、删除
@@ -292,20 +290,20 @@ public class MiningService {
     private String buildMiningSqlWhere() {
         HashMap<String, String> tableGroup = new HashMap<>();
         //将数据库名.表名的数组，转成 数据库名和表名的集合
-        String tb;
-        for (String field : env.getTables()) {
-            if (field.contains("|")) {
-                tb = field.substring(0, field.indexOf("|"));
-                tb = tb.toUpperCase();
-                String condition = field.substring(field.indexOf("|") + 1, field.length());
-                SQLExtractor.addRowCondition(tb, condition);
-            } else {
-                tb = field.toUpperCase();
-            }
+
+        for (String tb : env.getScanTables()) {
+//            if (field.contains("|")) {
+//                tb = field.substring(0, field.indexOf("|"));
+//                tb = tb.toUpperCase();
+//                String condition = field.substring(field.indexOf("|") + 1, field.length());
+//
+//            } else {
+//                tb = field.toUpperCase();
+//            }
 
             Assert.isTrue(tb.contains("."), "同步表名格式不符合 数据库名.表名 的格式(" + tb + ")");
             Assert.isTrue(!tb.contains("\\*"), "同步表名格式不符合 不可以使用通配 *(" + tb + ")");
-            traceTable.add(tb);
+
             String schemaName = tb.split("\\.")[0]; // 数据库名.表名
             String tableName = tb.split("\\.")[1]; // 数据库名.表名
             String tablesIn = tableGroup.get(schemaName);
@@ -349,7 +347,7 @@ public class MiningService {
             row.setScn(redoLog.getScn());
             row.setCommitScn(redoLog.getCommitScn());
             row.setTimestamp(redoLog.getTimestamp());
-            rabbitTemplate.convertAndSend(env.getExchangeName(), redoLog.getSchema() + "." + redoLog.getTableName(), row);
+            rabbitTemplate.convertAndSend(env.getExchangeName(row.getSchemaName(), row.getTableName()), redoLog.getSchema() + "." + redoLog.getTableName(), row);
 
             log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
         } catch (Exception e) {

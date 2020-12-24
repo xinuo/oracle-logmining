@@ -26,8 +26,12 @@ public class AutoTask implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info(env.toString());
-        miningService.startMining();
+        log.info(env.init());
+        try {
+            miningService.startMining();
+        } catch (InterruptedException e) {
+            log.error(e);
+        }
     }
 
 
