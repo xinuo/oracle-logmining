@@ -19,7 +19,7 @@ spring:
     name: oracle-mining
 
   redis:
-    host: 127.0.0.1
+    host: 192.168.251.61
     port: 6379
 
 
@@ -31,6 +31,7 @@ mining:
 
   #同步表名， 竖线后面为推送条件,可以为空,条件为true时不推送.  条件为js语法  字段名变量为大写
   tables:
+      #数组 格式要求为  数据库用户名.数据库表名（不允许使用*通配)|交换机名称|取数规则（ECMA语法）
     - CIICFS_TEST.E001
     - CIICFS_TEST.E200
     - CIICFS_TEST.E201

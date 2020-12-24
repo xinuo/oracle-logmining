@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class MiningService {
@@ -49,7 +50,7 @@ public class MiningService {
     private MiningState state;
     private HashSet<String> traceTable = new HashSet<>();
 
-    public void startMining() {
+    public void startMining() throws InterruptedException {
         // 读取state的seq
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
@@ -61,7 +62,12 @@ public class MiningService {
             // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
             boolean completedLogFlag = checkCompletedLog(state);
             // 从 seq 开始读取 archive log 或 redo log
-            pollingData(state);
+            try {
+                pollingData(state);
+            }catch (Exception e){
+                log.error(e);
+                TimeUnit.SECONDS.sleep(1);
+            }
             // 抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
             if (completedLogFlag)
                 state.nextLog();
@@ -328,7 +334,7 @@ public class MiningService {
 //        sql.insert(0, buildMiningSqlWhere());
 //        sql.insert(0, " AND ");
 //        sql.insert(0, Constants.QUERY_REDO);
-        String sql = String.format(Constants.QUERY_REDO, buildMiningSqlWhere());
+        String sql = String.format(Constants.QUERY_REDO2, buildMiningSqlWhere());
         log.debug("日志查询的sql是 {}", sql.toString());
         return sql.toString();
     }
