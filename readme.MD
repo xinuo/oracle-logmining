@@ -43,5 +43,5 @@ sqlplus sys@orclcdb as sysdba
 
 启动时可以手工指定起始同步的scn
 ```shell script
-java -jar logmining.jar --mining.init-start-time=202011020800
+java -jar logmining.jar
 ```
