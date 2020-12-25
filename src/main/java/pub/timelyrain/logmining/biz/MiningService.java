@@ -62,13 +62,14 @@ public class MiningService {
             // 从 seq 开始读取 archive log 或 redo log
             try {
                 pollingData(state);
+                // 正常抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
+                if (completedLogFlag)
+                    state.nextLog();
             } catch (Exception e) {
                 log.error(e);
                 TimeUnit.SECONDS.sleep(1);
             }
-            // 抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
-            if (completedLogFlag)
-                state.nextLog();
+
 
         }
 
@@ -146,47 +147,50 @@ public class MiningService {
         startLogFileMining(state);
         //启动日志分析
         jdbcTemplate.setFetchSize(500);
-//        jdbcTemplate.query(miningSql, (rs) -> {
-        jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
-            //读取事务id
-            String xid = rs.getString("XID");
-            int opCode = rs.getInt("OPERATION_CODE");
-            int rollback = rs.getInt("ROLLBACK");
-            if (1 == rollback)
-                return;
-            long rn = rs.getLong("RN");
-            //读取日志位置
-            long scn = rs.getLong("SCN");
-            long commitScn = rs.getLong("COMMIT_SCN");
-            String timestamp = rs.getTimestamp("TIMESTAMP").toString();
-            try {
-                //log.debug(scn);
-                //读取REDO
-                int csf = rs.getInt("CSF");
-                String schema = rs.getString("SEG_OWNER");
-                String rsId = rs.getString("RS_ID");
-                String tableName = rs.getString("TABLE_NAME");
-                String redo = rs.getString("SQL_REDO");
-                String rowId = rs.getString("ROW_ID");
-                if (csf == 1) {     //如果REDO被截断
-                    while (rs.next()) {  //继续查询下一条REDO
-                        redo += rs.getString("SQL_REDO");
-                        if (0 == rs.getInt("CSF")) {  //
-                            csf = 0;
-                            break;  //退出循环
+
+        try {
+            jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
+                //读取事务id
+                String xid = rs.getString("XID");
+                int opCode = rs.getInt("OPERATION_CODE");
+                int rollback = rs.getInt("ROLLBACK");
+                if (1 == rollback)
+                    return;
+                long rn = rs.getLong("RN");
+                //读取日志位置
+                long scn = rs.getLong("SCN");
+                long commitScn = rs.getLong("COMMIT_SCN");
+                String timestamp = rs.getTimestamp("TIMESTAMP").toString();
+                try {
+                    //log.debug(scn);
+                    //读取REDO
+                    int csf = rs.getInt("CSF");
+                    String schema = rs.getString("SEG_OWNER");
+                    String rsId = rs.getString("RS_ID");
+                    String tableName = rs.getString("TABLE_NAME");
+                    String redo = rs.getString("SQL_REDO");
+                    String rowId = rs.getString("ROW_ID");
+                    if (csf == 1) {     //如果REDO被截断
+                        while (rs.next()) {  //继续查询下一条REDO
+                            redo += rs.getString("SQL_REDO");
+                            if (0 == rs.getInt("CSF")) {  //
+                                csf = 0;
+                                break;  //退出循环
+                            }
                         }
                     }
-                }
 
-                RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode, rsId);
-                traceChange(redoLog);
-            } finally {
-                saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
-            }
-        }, state.getLastRowNum());   //传入redo value，不重复读取日志。
-        //关闭日志分析
-        log.debug("停止分析REDO日志 {}", Constants.MINING_END);
-        jdbcTemplate.update(Constants.MINING_END);
+                    RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode, rsId);
+                    traceChange(redoLog);
+                } finally {
+                    saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
+                }
+            }, state.getLastRowNum());   //传入redo value，不重复读取日志。
+            //关闭日志分析
+        } finally {
+            log.debug("停止分析REDO日志 {}", Constants.MINING_END);
+            jdbcTemplate.update(Constants.MINING_END);
+        }
     }
 
     private void startLogFileMining(MiningState state) {
