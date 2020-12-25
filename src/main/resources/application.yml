@@ -7,6 +7,8 @@ spring:
     url: jdbc:oracle:thin:@192.168.10.123:1521/orcl
     username: c##kminer
     password: kminerpass
+#    username: sys
+#    password: ciicpt
     type: org.springframework.jdbc.datasource.SingleConnectionDataSource
 
   rabbitmq:
@@ -40,6 +42,7 @@ mining:
     - CIICFS_TEST.E204_TAXHISTORY|oracle-sync-exchange-salary
     - CIICFS_TEST.F200|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.F201|oracle-sync-exchange-baseinfo
+    - CIICFS_TEST.FS_WAGE_ITEM|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A001|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A002|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A200|oracle-sync-exchange-baseinfo
@@ -49,12 +52,14 @@ mining:
     - CIICFS_WAGE_TEST.B001|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.B200|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.B201|oracle-sync-exchange-baseinfo
+    - CIICFS_WAGE_TEST.PAY_ITEM|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A001|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A003|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A012|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A019|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A026|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.CUSTOM_INFO|oracle-sync-exchange-baseinfo
+    - CIICFC_HRCLOUD_20200902.WAGE_ITEM|oracle-sync-exchange-baseinfo
 
 
   exchanges:

@@ -12,26 +12,27 @@ import pub.timelyrain.logmining.config.Env;
 @Component
 public class AutoTask implements ApplicationRunner {
     private final Logger log = LogManager.getLogger(AutoTask.class);
-    private final MiningService miningService;
+    private final ExtractService miningService;
+    private final ReplicateService replicateService;
     private final Env env;
     private final RedisTemplate redisTemplate;
 
     @Autowired
-    public AutoTask(MiningService miningService, Env env, RedisTemplate redisTemplate) {
+    public AutoTask(ExtractService miningService, ReplicateService replicateService, Env env, RedisTemplate redisTemplate) {
         this.miningService = miningService;
         this.env = env;
         this.redisTemplate = redisTemplate;
+        this.replicateService = replicateService;
     }
 
 
     @Override
     public void run(ApplicationArguments args) {
         log.info(env.init());
-        try {
-            miningService.startMining();
-        } catch (InterruptedException e) {
-            log.error(e);
-        }
+
+        miningService.start();
+        replicateService.start();
+
     }
 
 

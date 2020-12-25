@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,32 +12,29 @@ import org.springframework.util.Assert;
 import pub.timelyrain.logmining.config.Env;
 import pub.timelyrain.logmining.pojo.MiningState;
 import pub.timelyrain.logmining.pojo.RedoLog;
-import pub.timelyrain.logmining.pojo.Row;
+import pub.timelyrain.logmining.utils.TimeUtil;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @Component
-public class MiningService {
-    Logger log = LogManager.getLogger(MiningService.class);
+public class ExtractService extends Thread {
+    private static final Logger log = LogManager.getLogger(ExtractService.class);
+    private static final Logger trlog = LogManager.getLogger("tracetr");
 
 
     private final JdbcTemplate jdbcTemplate;
-    private final SQLExtractor sqlExtractor;
-    private final RabbitTemplate rabbitTemplate;
+
     private final CounterService counterService;
     private final Env env;
     private final RedisTemplate redisTemplate;
 
     @Autowired
-    public MiningService(JdbcTemplate jdbcTemplate, SQLExtractor sqlExtractor, RabbitTemplate rabbitTemplate, CounterService counterService, Env env, RedisTemplate redisTemplate) {
+    public ExtractService(JdbcTemplate jdbcTemplate, CounterService counterService, Env env, RedisTemplate redisTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-        this.sqlExtractor = sqlExtractor;
-        this.rabbitTemplate = rabbitTemplate;
         this.counterService = counterService;
         this.env = env;
         this.redisTemplate = redisTemplate;
@@ -48,7 +44,8 @@ public class MiningService {
     private String miningSql;
     private MiningState state;
 
-    public void startMining() throws InterruptedException {
+    @Override
+    public void run() {
         // 读取state的seq
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
@@ -63,16 +60,15 @@ public class MiningService {
             try {
                 pollingData(state);
                 // 正常抓取完毕后,若fulllog=true,则seq+1 重复进行新日志抓取
-                if (completedLogFlag)
+                if (completedLogFlag) {
+                    log.info("日志 {} 读取完毕", state.getLastSequence());
                     state.nextLog();
+                }
             } catch (Exception e) {
                 log.error(e);
-                TimeUnit.SECONDS.sleep(1);
+                TimeUtil.sheep(1);
             }
-
-
         }
-
     }
 
     /**
@@ -149,6 +145,8 @@ public class MiningService {
         jdbcTemplate.setFetchSize(500);
 
         try {
+            //jdbcTemplate.update("create table save_" + state.getLastSequence() + "_" + state.getLastRowNum() + " as " + Constants.QUERY_REDO.replaceAll("\\?", String.valueOf(state.getLastRowNum())));
+
             jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
                 //读取事务id
                 String xid = rs.getString("XID");
@@ -167,11 +165,12 @@ public class MiningService {
                     int csf = rs.getInt("CSF");
                     String schema = rs.getString("SEG_OWNER");
                     String rsId = rs.getString("RS_ID");
+//                    trlog.info("{}\t{}\t{}", rn, rsId, state.getLastSequence());
                     String tableName = rs.getString("TABLE_NAME");
                     String redo = rs.getString("SQL_REDO");
                     String rowId = rs.getString("ROW_ID");
                     if (csf == 1) {     //如果REDO被截断
-                        while (rs.next()) {  //继续查询下一条REDO
+                        while (rs.next() && !Thread.interrupted()) {  //继续查询下一条REDO
                             redo += rs.getString("SQL_REDO");
                             if (0 == rs.getInt("CSF")) {  //
                                 csf = 0;
@@ -237,18 +236,17 @@ public class MiningService {
 
     private void commitRedo(RedoLog redoLog) {
         String txKey = "mining:xid:" + redoLog.getXid();
-        //从redis中取得redolog的列表，并调用convertAndDelivery
-        while (redisTemplate.opsForList().size(txKey) != 0) {
-            RedoLog redo = (RedoLog) redisTemplate.opsForList().leftPop(txKey);
-            convertAndDelivery(redo);
-        }
-        redisTemplate.delete(txKey);
+        long count = redisTemplate.opsForList().size(txKey);
+
+        log.info("识别提交标记 事务id为 {} 总数据条数 {}", redoLog.getXid(), count);
+        redisTemplate.opsForList().rightPush("mining:replicate", redoLog.getXid());
+
     }
 
     private void rollbackRedo(RedoLog redoLog) {
         //根据事务id删除redis缓存的redelog
         redisTemplate.delete("mining:xid:" + redoLog.getXid());
-        log.debug("识别回滚事务 事务id为 {}", redoLog.getXid());
+        log.debug("识别回滚标记 事务id为 {}", redoLog.getXid());
     }
 
     private void loadLogFile(long sequence) {
@@ -339,24 +337,6 @@ public class MiningService {
         String sql = String.format(Constants.QUERY_REDO2, buildMiningSqlWhere());
         log.debug("日志查询的sql是 {}", sql.toString());
         return sql.toString();
-    }
-
-    private void convertAndDelivery(RedoLog redoLog) {
-        try {
-            Row row = sqlExtractor.parse(redoLog.getSchema(), redoLog.getTableName(), redoLog.getRedo());
-            if (row == null)
-                return;
-
-            row.setRowId(redoLog.getRowId());
-            row.setScn(redoLog.getScn());
-            row.setCommitScn(redoLog.getCommitScn());
-            row.setTimestamp(redoLog.getTimestamp());
-            rabbitTemplate.convertAndSend(env.getExchangeName(row.getSchemaName(), row.getTableName()), redoLog.getSchema() + "." + redoLog.getTableName(), row);
-
-            log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
-        } catch (Exception e) {
-            log.error("转换REDO和分发数据错误", e);
-        }
     }
 
 

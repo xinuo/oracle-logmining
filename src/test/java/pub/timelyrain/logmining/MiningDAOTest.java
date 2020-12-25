@@ -4,19 +4,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import pub.timelyrain.logmining.biz.MiningService;
+import pub.timelyrain.logmining.biz.ExtractService;
 
 @SpringBootTest
 class MiningDAOTest {
     @Autowired
-    private MiningService miningDAO;
+    private ExtractService miningDAO;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
     @Test
     void startMining() throws InterruptedException {
-        miningDAO.startMining();
+        miningDAO.start();
     }
     @Test
     void sendMq(){

@@ -37,6 +37,7 @@ public class RedoLog {
                 "schema='" + schema + '\'' +
                 ", tableName='" + tableName + '\'' +
                 ", rowId='" + rowId + '\'' +
+                ", rsId='" + rsId + '\'' +
                 ", scn=" + scn +
                 ", commitScn=" + commitScn +
                 ", timestamp='" + timestamp + '\'' +

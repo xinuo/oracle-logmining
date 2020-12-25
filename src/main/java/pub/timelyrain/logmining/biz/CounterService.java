@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class CounterService {
-    private static final Logger log = LogManager.getLogger(MiningService.class);
+    private static final Logger log = LogManager.getLogger(ExtractService.class);
     private static final List<Counter> traceList = new Vector();
     private static final AtomicLong totalCount = new AtomicLong(0);
 
