@@ -51,7 +51,7 @@ public class ReplicateService extends Thread {
         }
         log.info("事务 {} 数据推送完毕", xid);
         redisTemplate.delete(txKey);
-        redisTemplate.opsForSet().remove(Constants.QUEUE_REPLICATE, xid);
+
     }
 
     private void convertAndDelivery(RedoLog redoLog) {
