@@ -198,7 +198,7 @@ public class ExtractService extends Thread {
                 } finally {
                     saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
                 }
-            }, currentThread,state.getLastRowNum());   //传入redo value，不重复读取日志。
+            },state.getLastRowNum());   //传入redo value，不重复读取日志。
             //关闭日志分析
         } finally {
             log.debug("停止分析REDO日志 {}", Constants.MINING_END);
@@ -217,6 +217,7 @@ public class ExtractService extends Thread {
 //            }
 //        }
         jdbcTemplate.update(Constants.MINING_START);
+        log.debug("开启日志");
 
     }
 
