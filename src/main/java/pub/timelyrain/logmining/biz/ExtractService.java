@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@Scope("prototype")
 public class ExtractService extends Thread {
     private static final Logger log = LogManager.getLogger(ExtractService.class);
     private static final Logger trlog = LogManager.getLogger("tracetr");
@@ -43,9 +45,12 @@ public class ExtractService extends Thread {
 
     private String miningSql;
     private MiningState state;
+    private int currentThread ;
 
     @Override
     public void run() {
+        System.out.println(jdbcTemplate);
+
         // 读取state的seq
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
@@ -339,5 +344,11 @@ public class ExtractService extends Thread {
         return sql.toString();
     }
 
+    public int getCurrentThread() {
+        return currentThread;
+    }
 
+    public void setCurrentThread(int currentThread) {
+        this.currentThread = currentThread;
+    }
 }
