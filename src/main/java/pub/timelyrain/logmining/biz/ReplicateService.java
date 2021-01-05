@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import pub.timelyrain.logmining.config.Env;
@@ -12,6 +13,7 @@ import pub.timelyrain.logmining.pojo.Row;
 import pub.timelyrain.logmining.utils.TimeUtil;
 
 @Component
+@Scope("prototype")
 public class ReplicateService extends Thread {
     private static final Logger log = LogManager.getLogger(ReplicateService.class);
     private RedisTemplate redisTemplate;

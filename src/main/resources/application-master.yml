@@ -7,7 +7,8 @@ spring:
     password: Ciic_pt_log
 #    username: sys
 #    password: ciicpt
-    type: org.springframework.jdbc.datasource.SingleConnectionDataSource
+    #type: org.springframework.jdbc.datasource.SingleConnectionDataSource
+    type: com.zaxxer.hikari.HikariDataSource
 
   rabbitmq:
     host: 10.0.128.99
