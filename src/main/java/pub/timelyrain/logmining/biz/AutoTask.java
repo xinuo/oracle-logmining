@@ -30,7 +30,7 @@ public class AutoTask implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         log.info(env.init());
 
-        for(int i=0;i<5;i++){
+        for(int i=0;i<2;i++){
             ExtractService extractService = BeanContextConfig.getBean(ExtractService.class);
             extractService.setCurrentThread(i+1);
             extractService.start();
