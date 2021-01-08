@@ -49,19 +49,25 @@ public class ExtractService extends Thread {
 
     private String miningSql;
     private MiningState state;
-    private int currentThread ;
+    private int currentThread;
+
+    private int hashid;
 
     @Override
     public void run() {
-        System.out.println(jdbcTemplate);
-
+        log.debug("开始抓取 run ");
         // 读取state的seq
         state = loadState();
         // 判断 seq 小于数据库 archivelog的的最小 seq 提示有数据丢失（抓取程序长时间未启动，而归档日志被清理掉了）
         pollingCheck(state);
         miningSql = buildMiningSql();
 
-
+        try {
+            hashid = jdbcTemplate.getDataSource().getConnection().hashCode();
+            log.info("getConnection hash 值：{}", hashid);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         while (!Thread.interrupted()) {
             // 判断该seq是否是最末尾，若是代表本次抓取的日志不完整，需要再次抓取该文件。若不是末尾seq ，则一次可以抓取完整的日志。保存一个fulllog 状态.
             boolean completedLogFlag = checkCompletedLog(state);
@@ -74,7 +80,7 @@ public class ExtractService extends Thread {
                     state.nextLog();
                 }
             } catch (Exception e) {
-                log.error(e);
+                log.error("抓取数据出错》》》》》",e);
                 TimeUtil.sheep(1);
             }
         }
@@ -88,11 +94,11 @@ public class ExtractService extends Thread {
      */
     private boolean checkCompletedLog(MiningState state) {
         //检查归档日志的最大seq是否大于当前日志编号
-        long maxSequence = jdbcTemplate.queryForObject(QUERY_MAX_SEQUENCE_ARCHIVED, Long.class,currentThread);
+        long maxSequence = jdbcTemplate.queryForObject(QUERY_MAX_SEQUENCE_ARCHIVED, Long.class, currentThread);
         if (maxSequence > state.getLastSequence())
             return true;
         //检查online日志的最大seq是否大于当前日志编号
-        maxSequence = jdbcTemplate.queryForObject(QUERY_MAX_SEQUENCE_ONLINE, Long.class,currentThread);
+        maxSequence = jdbcTemplate.queryForObject(QUERY_MAX_SEQUENCE_ONLINE, Long.class, currentThread);
         if (maxSequence > state.getLastSequence())
             return true;
 
@@ -105,7 +111,7 @@ public class ExtractService extends Thread {
      * @param state
      */
     private void pollingCheck(MiningState state) {
-        long minSequence = jdbcTemplate.queryForObject(QUERY_MIN_SEQUENCE_ARCHIVED, Long.class,currentThread);
+        long minSequence = jdbcTemplate.queryForObject(QUERY_MIN_SEQUENCE_ARCHIVED, Long.class, currentThread);
         if (minSequence > state.getLastSequence()) {
             log.warn("\r\n");
             log.warn("**********************************");
@@ -123,11 +129,11 @@ public class ExtractService extends Thread {
      */
     private MiningState loadState() {
         try {
-            File stateFile = new File("thread_"+currentThread+"_state.saved");
+            File stateFile = new File("thread_" + currentThread + "_state.saved");
             if (!stateFile.exists()) {
                 //初次启动,读取当前seq.
-                long seq = jdbcTemplate.queryForObject(QUERY_SEQUENCE ,Long.class,currentThread);
-                log.info("未找到进度状态文件,从最新日志开始抓取,日志编号为 {}", seq);
+                long seq = jdbcTemplate.queryForObject(QUERY_SEQUENCE, Long.class, currentThread);
+                log.info("未找到进度状态文件,从最新日志开始抓取,日志编号为 {} hash值：{}", seq, hashid);
                 return new MiningState(0, 0, seq, null);
             }
             String stateStr = FileUtils.readFileToString(stateFile, "utf-8");
@@ -155,12 +161,7 @@ public class ExtractService extends Thread {
 
         try {
             //jdbcTemplate.update("create table save_" + state.getLastSequence() + "_" + state.getLastRowNum() + " as " + Constants.QUERY_REDO.replaceAll("\\?", String.valueOf(state.getLastRowNum())));
-            try {
-                int i = jdbcTemplate.getDataSource().getConnection().hashCode();
-                log.info("getConnection hash 值：{}",i);
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+
             jdbcTemplate.query(Constants.QUERY_REDO, (rs) -> {
                 //读取事务id
                 String xid = rs.getString("XID");
@@ -196,12 +197,16 @@ public class ExtractService extends Thread {
                     RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode, rsId);
                     traceChange(redoLog);
                 } finally {
+                    log.debug("成功完成读取REDO日志 并保存读取的结果的索引值 ");
                     saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
                 }
-            },state.getLastRowNum());   //传入redo value，不重复读取日志。
+            }, state.getLastRowNum());   //传入redo value，不重复读取日志。
             //关闭日志分析
+        } catch (Exception e) {
+            log.error("读取LOG出错", e);
+            throw e;
         } finally {
-            log.debug("停止分析REDO日志 {}", Constants.MINING_END);
+            log.debug("停止分析REDO日志 {} ,hash值：{}", Constants.MINING_END, hashid);
             jdbcTemplate.update(Constants.MINING_END);
         }
     }
@@ -217,7 +222,7 @@ public class ExtractService extends Thread {
 //            }
 //        }
         jdbcTemplate.update(Constants.MINING_START);
-        log.debug("开启日志");
+        log.debug("开启日志,hash值：{}", hashid);
 
     }
 
@@ -267,17 +272,17 @@ public class ExtractService extends Thread {
     private void loadLogFile(long sequence) {
         String logFile;
         boolean onlineLogFlag = false;
-        List<Map<String, Object>> result = jdbcTemplate.queryForList(QUERY_NAME_SEQUENCE_ARCHIVED, sequence,currentThread);
+        List<Map<String, Object>> result = jdbcTemplate.queryForList(QUERY_NAME_SEQUENCE_ARCHIVED, sequence, currentThread);
         if (result.isEmpty()) {
-            result = jdbcTemplate.queryForList(QUERY_NAME_SEQUENCE_ONLINE, sequence,currentThread);
+            result = jdbcTemplate.queryForList(QUERY_NAME_SEQUENCE_ONLINE, sequence, currentThread);
             onlineLogFlag = true;
         }
         Assert.state(!result.isEmpty(), String.format("未找到编号为 %d 的日志文件地址", sequence));
 
         logFile = (String) result.get(0).get("name");
-        if(StringUtils.isEmpty(logFile)){
-            log.error("待挖掘的日志已被删除，请检查");
-            return ;
+        if (StringUtils.isEmpty(logFile)) {
+            log.error("待挖掘的日志已被删除，请检查 hash值：{}", hashid);
+            return;
         }
         jdbcTemplate.update(ADD_LOGFILE, logFile);
         log.debug("分析 {} 日志, 日志编号为 {}, 日志文件为 {}", (onlineLogFlag ? "online log" : "archive log"), sequence, logFile);
@@ -298,7 +303,7 @@ public class ExtractService extends Thread {
 
         String stateStr = null;
         try {
-            File state = new File("thread_"+currentThread+"_state.saved");
+            File state = new File("thread_" + currentThread + "_state.saved");
             stateStr = new ObjectMapper().writeValueAsString(this.state);
             FileUtils.writeStringToFile(state, stateStr, "UTF-8", false);
 //            log.debug("saved state {}", stateStr);
