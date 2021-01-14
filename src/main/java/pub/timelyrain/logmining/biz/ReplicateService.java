@@ -70,7 +70,7 @@ public class ReplicateService extends Thread {
 
             log.debug("发送数据,类型{}.{} 表为{}.{}, sql is {}", row.getMode(), row.getOperator(), row.getSchemaName(), row.getTableName(), row.getSql());
         } catch (Exception e) {
-            log.error("转换REDO和分发数据错误", e);
+            log.error("转换REDO和分发数据错误 scn:{}", redoLog.toString(),e);
         }
     }
 

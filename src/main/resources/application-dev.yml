@@ -32,7 +32,7 @@ mining:
   multiTenant: true
 
 
-  #同步表名: 数据库用户名.数据库表名(大写不允许使用*通配)|交换机名称|取数规则(ECMA语法)可以为空,条件为true时不推送. 条件语句为js语法
+  #同步表名: 数据库用户名.数据库表名(大写不允许使用*通配)|交换机名称|取数规则(ECMA语法)可以为空,条件为false时不推送. 条件语句为js语法
   tables:
     - CIICFS_TEST.E001|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.E200|oracle-sync-exchange-baseinfo
@@ -44,17 +44,17 @@ mining:
     - CIICFS_TEST.E204_TAXHISTORY|oracle-sync-exchange-salary
     - CIICFS_TEST.F200|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.F201|oracle-sync-exchange-baseinfo
-    - CIICFS_TEST.FS_WAGE_ITEM|oracle-sync-exchange-biz
+    - CIICFS_TEST.FS_WAGE_ITEM|oracle-sync-exchange-biz|set_id =='108'
     - CIICFS_WAGE_TEST.A001|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A002|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A200|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.A282|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE_TEST.A815|oracle-sync-exchange-salary
+    - CIICFS_WAGE_TEST.A815|oracle-sync-exchange-salary|A815996!='' && A815996!=null
     - CIICFS_WAGE_TEST.A703|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.B001|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.B200|oracle-sync-exchange-baseinfo
     - CIICFS_WAGE_TEST.B201|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE_TEST.PAY_ITEM|oracle-sync-exchange-biz
+    - CIICFS_WAGE_TEST.PAY_ITEM|oracle-sync-exchange-biz|custom =='1'
     - CIICFC_HRCLOUD_20200902.A001|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A003|oracle-sync-exchange-baseinfo
     - CIICFC_HRCLOUD_20200902.A012|oracle-sync-exchange-baseinfo
@@ -69,5 +69,6 @@ mining:
       - oracle-sync.ciic-bsp-biz
     oracle-sync-exchange-baseinfo:
       - oracle-sync.ciic-bsp-cus
+      - oracle-sync.ciic-bsp-biz
     oracle-sync-exchange-salary:
       - oracle-sync.ciic-bsp-wage

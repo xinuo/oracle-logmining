@@ -2,4 +2,4 @@ server:
   port: 8484
 spring:
   profiles:
-    active: master
+    active: dev
