@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>pub.timelyrain</groupId>
-    <artifactId>logmining</artifactId>
+    <artifactId>ciic-wage-logmining</artifactId>
     <version>0.1</version>
     <name>oracle-logmining</name>
     <description>mining oracle archivelog for sync data</description>
