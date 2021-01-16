@@ -40,7 +40,7 @@ mining:
     - CIICFS_TEST.F001|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.F203|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.F204|oracle-sync-exchange-baseinfo
-    - CIICFS_TEST.E204|oracle-sync-exchange-salary
+    - CIICFS_TEST.E204|oracle-sync-exchange-salary|E204477=='00901'
     - CIICFS_TEST.E204_TAXHISTORY|oracle-sync-exchange-salary
     - CIICFS_TEST.F200|oracle-sync-exchange-baseinfo
     - CIICFS_TEST.F201|oracle-sync-exchange-baseinfo
