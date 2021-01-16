@@ -30,7 +30,7 @@ public class AutoTask implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         log.info("启动抓取,并初始化表与交换机关系：{}",env.init());
 
-        for(int i=0;i<1;i++){
+        for(int i=0;i<2;i++){
             ExtractService extractService = BeanContextConfig.getBean(ExtractService.class);
             int i1 = extractService.hashCode();
             log.debug("extractService.hashCode()：{}",i1);
