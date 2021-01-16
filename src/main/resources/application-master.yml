@@ -71,5 +71,6 @@ mining:
       - oracle-sync.ciic-bsp-biz
     oracle-sync-exchange-baseinfo:
       - oracle-sync.ciic-bsp-cus
+      - oracle-sync.ciic-bsp-biz
     oracle-sync-exchange-salary:
       - oracle-sync.ciic-bsp-wage

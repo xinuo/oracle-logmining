@@ -197,7 +197,7 @@ public class ExtractService extends Thread {
                     RedoLog redoLog = new RedoLog(schema, tableName, redo, rowId, scn, commitScn, timestamp, rn, xid, opCode, rsId);
                     traceChange(redoLog);
                 } finally {
-                    log.debug("成功完成读取REDO日志 并保存读取的结果的索引值 ");
+                   // log.debug("成功完成读取REDO日志 并保存读取的结果的索引值 ");
                     saveMiningState(commitScn, rn, state.getLastSequence(), timestamp);
                 }
             }, state.getLastRowNum());   //传入redo value，不重复读取日志。
