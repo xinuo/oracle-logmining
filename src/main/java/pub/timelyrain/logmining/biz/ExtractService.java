@@ -44,6 +44,7 @@ public class ExtractService extends Thread {
         this.counterService = counterService;
         this.env = env;
         this.redisTemplate = redisTemplate;
+        getFilePath();
 
     }
 
@@ -52,7 +53,7 @@ public class ExtractService extends Thread {
     private int currentThread;
 
     private int hashid;
-
+    private String filePath;
     @Override
     public void run() {
         log.debug("开始抓取 run ");
@@ -129,7 +130,7 @@ public class ExtractService extends Thread {
      */
     private MiningState loadState() {
         try {
-            File stateFile = new File("thread_" + currentThread + "_state.saved");
+            File stateFile = new File(filePath + currentThread + "_state.saved");
             if (!stateFile.exists()) {
                 //初次启动,读取当前seq.
                 long seq = jdbcTemplate.queryForObject(QUERY_SEQUENCE, Long.class, currentThread);
@@ -303,7 +304,8 @@ public class ExtractService extends Thread {
 
         String stateStr = null;
         try {
-            File state = new File("thread_" + currentThread + "_state.saved");
+            File state = new File("/"+filePath + currentThread + "_state.saved");
+            state.exists();
             stateStr = new ObjectMapper().writeValueAsString(this.state);
             FileUtils.writeStringToFile(state, stateStr, "UTF-8", false);
 //            log.debug("saved state {}", stateStr);
@@ -312,6 +314,19 @@ public class ExtractService extends Thread {
         }
     }
 
+    /**
+     * 根据系统类型生成文件路径
+     */
+    void  getFilePath (){
+        // 得到当前系统名称
+        String s = System.getProperties().get("os.name").toString();
+        // 如果是window 则 用相对路径 如果是liunx 则用 绝对路径
+        if(s.indexOf("windows")>-1 || s.indexOf("Windows")>-1){
+            this.filePath= "state/thread_";
+        }else {
+            this.filePath= "/state/thread_";
+        }
+    }
     private String buildMiningSqlWhere() {
         HashMap<String, String> tableGroup = new HashMap<>();
         //将数据库名.表名的数组，转成 数据库名和表名的集合
