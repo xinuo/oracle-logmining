@@ -2,27 +2,24 @@
 spring:
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
-    url: jdbc:oracle:thin:@(description=(address_list=(address=(host=10.0.131.11) (protocol=tcp)(port=1521))(address=(host=10.0.131.12) (protocol=tcp)(port=1521))(address=(host=10.0.131.13) (protocol=tcp)(port=1521))(load_balance=yes)(failover=yes))(connect_data=(service_name= ciicbj)))
-    username: ciic_pt_log
-    password: Ciic_pt_log
-#    username: sys
-#    password: ciicpt
-    #type: org.springframework.jdbc.datasource.SingleConnectionDataSource
+    url: 
+    username: 
+    password: 
     type: com.zaxxer.hikari.HikariDataSource
 
   rabbitmq:
-    host: 10.0.128.99
+    host: 
     port: 5672
-    username: admin
-    password: admin
+    username: 
+    password: 
 
   application:
     name: oracle-mining
 
   redis:
-    host: 10.0.128.99
-    port: 6379
-    password: Ciic@123
+    host: 
+    port: 
+    password: 
 
 logging:
   level:
@@ -36,34 +33,7 @@ mining:
 
   #同步表名: 数据库用户名.数据库表名(大写不允许使用*通配)|交换机名称|取数规则(ECMA语法)可以为空,条件为true时不推送. 条件语句为js语法
   tables:
-    - CIICFS.E001|oracle-sync-exchange-baseinfo
-    - CIICFS.E200|oracle-sync-exchange-baseinfo
-    - CIICFS.E201|oracle-sync-exchange-baseinfo
-    - CIICFS.F001|oracle-sync-exchange-baseinfo
-    - CIICFS.F203|oracle-sync-exchange-baseinfo
-    - CIICFS.F204|oracle-sync-exchange-baseinfo
-    - CIICFS.E204|oracle-sync-exchange-salary|E204477=='00901'
-    - CIICFS.E204_TAXHISTORY|oracle-sync-exchange-salary
-    - CIICFS.F200|oracle-sync-exchange-baseinfo
-    - CIICFS.F201|oracle-sync-exchange-baseinfo
-    - CIICFS.FS_WAGE_ITEM|oracle-sync-exchange-biz|set_id =='108'
-    - CIICFS_WAGE.A001|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.A002|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.A200|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.A282|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.A815|oracle-sync-exchange-salary|A815996!='' && A815996!=null
-    - CIICFS_WAGE.A703|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.B001|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.B200|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.B201|oracle-sync-exchange-baseinfo
-    - CIICFS_WAGE.PAY_ITEM|oracle-sync-exchange-biz|custom =='1'
-    - CIICFC_HRCLOUD.A001|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.A003|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.A012|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.A019|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.A026|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.CUSTOM_INFO|oracle-sync-exchange-baseinfo
-    - CIICFC_HRCLOUD.WAGE_ITEM|oracle-sync-exchange-biz
+    - schema.table|oracle-sync-exchange-baseinfo
 
 
   exchanges:
